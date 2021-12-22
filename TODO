@@ -1,6 +1,5 @@
 BOOTDISK TODO
 =============
 
-Update macOS code to mirror Linux code and test.
-Add support for legacy Windows XP install disk?
-Perhaps add support for OpenBSD and others?
+Maybe add support for Windows XP install disk?
+Maybe add support to run on OpenBSD and others?
