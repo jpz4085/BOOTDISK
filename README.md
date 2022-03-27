@@ -29,5 +29,5 @@ This can also be done before installation of BOOTDISK without requiring sudo.
 
 ### Requirements
 
-Linux packages: curl, p7zip, ms-sys, mtools, exfat-fuse, exfat-utils and ntfs-3g. User should be member of "disk" group to allow unprivileged device access.
+Linux packages: curl, p7zip, ms-sys, mtools, exfat-fuse, exfat-utils and ntfs-3g. User should be member of "disk" group to allow unprivileged device access.  
 macOS packages: p7zip, mtools and bash (above version 3.2). These can be downloaded using MacPorts or Homebrew. Optionally ms-sys and sgdisk are supported if present.
