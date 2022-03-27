@@ -1,4 +1,4 @@
-# BOOTDISK v1.0
+# BOOTDISK v1.1
 #
 # Makefile for Darwin and Linux
 #
@@ -41,6 +41,16 @@ ifeq ($(OS),Darwin)
 	$(RM) $(BINDIR)/exfatboot
 endif
 	$(RM) -r $(RESDIR)
+
+update:
+	$(RM) $(BINDIR)/bootdisk
+	$(RM) $(RESDIR)/Support/Readme.txt
+	find $(RESDIR) -type f -name '*disk.sh' -delete
+	install -m 755 bootdisk.sh $(BINDIR)/bootdisk
+	install -m 755 FreeDOS/freedosdisk.sh $(RESDIR)/FreeDOS
+	install -m 755 MS-DOS/msdosdisk.sh $(RESDIR)/MS-DOS
+	install -m 644 Support/Readme.txt $(RESDIR)/Support
+	install -m 755 Windows/windowsdisk.sh $(RESDIR)/Windows
 
 clean:
 ifeq ($(OS),Darwin)
