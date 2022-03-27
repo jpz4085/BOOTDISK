@@ -1,9 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-#  bootdisk.sh - menu/input script
+#  bootdisk.sh
+#  
 #
-#  Author: Joseph P. Zeller
-#
+#  Created by Joseph P. Zeller on 1/5/20.
+#  
 
 menu1 () {
 while :
@@ -11,7 +12,7 @@ do
 clear
 cat<<EOF
 ===========================
-    ---BOOTDISK v1.0---
+    ---BOOTDISK v1.1---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -42,7 +43,7 @@ do
 clear
 cat<<EOF
 ===========================
-    ---BOOTDISK v1.0---
+    ---BOOTDISK v1.1---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -71,7 +72,7 @@ do
 clear
 cat<<EOF
 ===========================
-    ---BOOTDISK v1.0---
+    ---BOOTDISK v1.1---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -96,16 +97,26 @@ fdosdisk () {
 clear
 echo "   FreeDOS 1.2 Boot Disk Script    "
 echo "-----------------------------------"
-read -p "Enter target disk [disk#/sd*]: " tgtdsk
-while [[ $tgtdsk != *"disk"* && $tgtdsk != *"sd"* ]]; do
-    echo "Invalid target disk. Try again."
-    read -p "Enter target disk [disk#/sd*]: " tgtdsk
-done
+if [[ "$system" == "Darwin" ]]; then
+   read -p "Enter target disk [disk#]: " tgtdsk
+   while [[ $tgtdsk != *"disk"* ]]; do
+         echo -e "${RED}Invalid disk name. Try again.${NC}"
+         read -p "Enter target disk [disk#]: " tgtdsk
+   done
+elif [[ "$system" == "Linux" ]]; then
+     read -p "Enter target disk [sd*]: " tgtdsk
+     while [[ $tgtdsk != *"sd"* ]]; do
+           echo -e "${RED}Invalid disk name. Try again.${NC}"
+           read -p "Enter target disk [sd*]: " tgtdsk
+     done
+fi
 
 read -p "Enter file system [FAT16/FAT32]: " fstyp
+fstyp=${fstyp^^}
 while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
-    echo "Invalid file system type. Try again."
+    echo -e "${RED}Invalid file system type. Try again.${NC}"
     read -p "Enter file system [FAT16/FAT32]: " fstyp
+    fstyp=${fstyp^^}
 done
 
 read -p "Enter label [FREEDOS]: " volname
@@ -120,16 +131,26 @@ msdosdisk () {
 clear
 echo "    MS-DOS 8.0 Boot Disk Script    "
 echo "-----------------------------------"
-read -p "Enter target disk [disk#/sd*]: " tgtdsk
-while [[ $tgtdsk != *"disk"* && $tgtdsk != *"sd"* ]]; do
-    echo "Invalid target disk. Try again."
-    read -p "Enter target disk [disk#/sd*]: " tgtdsk
-done
+if [[ "$system" == "Darwin" ]]; then
+   read -p "Enter target disk [disk#]: " tgtdsk
+   while [[ $tgtdsk != *"disk"* ]]; do
+         echo -e "${RED}Invalid disk name. Try again.${NC}"
+         read -p "Enter target disk [disk#]: " tgtdsk
+   done
+elif [[ "$system" == "Linux" ]]; then
+     read -p "Enter target disk [sd*]: " tgtdsk
+     while [[ $tgtdsk != *"sd"* ]]; do
+           echo -e "${RED}Invalid disk name. Try again.${NC}"
+           read -p "Enter target disk [sd*]: " tgtdsk
+     done
+fi
 
 read -p "Enter file system [FAT16/FAT32]: " fstyp
+fstyp=${fstyp^^}
 while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
-    echo "Invalid file system type. Try again."
+    echo -e "${RED}Invalid file system type. Try again.${NC}"
     read -p "Enter file system [FAT16/FAT32]: " fstyp
+    fstyp=${fstyp^^}
 done
 
 read -p "Enter label [MSDOS80]: " volname
@@ -144,31 +165,53 @@ windowsdisk () {
 clear
 echo "     Windows Boot Disk Script      "
 echo "-----------------------------------"
-read -p "Enter target disk [disk#/sd*]: " tgtdsk
-while [[ $tgtdsk != *"disk"* && $tgtdsk != *"sd"* ]]; do
-    echo "Invalid target disk. Try again."
-    read -p "Enter target disk [disk#/sd*]: " tgtdsk
+if [[ "$system" == "Darwin" ]]; then
+   read -p "Enter target disk [disk#]: " tgtdsk
+   while [[ $tgtdsk != *"disk"* ]]; do
+         echo -e "${RED}Invalid disk name. Try again.${NC}"
+         read -p "Enter target disk [disk#]: " tgtdsk
+   done
+elif [[ "$system" == "Linux" ]]; then
+     read -p "Enter target disk [sd*]: " tgtdsk
+     while [[ $tgtdsk != *"sd"* ]]; do
+           echo -e "${RED}Invalid disk name. Try again.${NC}"
+           read -p "Enter target disk [sd*]: " tgtdsk
+     done
+fi
+
+read -p "Enter partition scheme [GPT/MBR]: " prtshm
+prtshm=${prtshm^^}
+while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
+      echo -e "${RED}Invalid partition scheme. Try again.${NC}"
+      read -p "Enter partition scheme [GPT/MBR]: " prtshm
+      prtshm=${prtshm^^}
 done
 
 if [[ "$system" == "Darwin" ]]; then
     read -p "Enter file system [FAT32/EXFAT]: " fstyp
+    fstyp=${fstyp^^}
     while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" ]]; do
-        echo "Invalid file system type. Try again."
+        echo -e "${RED}Invalid file system type. Try again.${NC}"
         read -p "Enter file system [FAT32/EXFAT]: " fstyp
+        fstyp=${fstyp^^}
     done
 elif [[ "$system" == "Linux" ]]; then
     read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
+    fstyp=${fstyp^^}
     while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" && $fstyp != "NTFS" ]]; do
-        echo "Invalid file system type. Try again."
+        echo -e "${RED}Invalid file system type. Try again.${NC}"
         read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
+        fstyp=${fstyp^^}
     done
 fi
     
 if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]] && [[ -e $resdir/Support/uefi-ntfs.img ]]; then
     read -p "Enable UEFI boot support [Y/N]? " uefint
+    uefint=${uefint^^}
     while [[ $uefint != "Y" && $uefint != "N" ]]; do
-        echo "Invalid entry. Try again."
+        echo -e "${RED}Invalid entry. Try again.${NC}"
         read -p "Enable UEFI boot support [Y/N]? " uefint
+        uefint=${uefint^^}
     done
 else
     uefint="N"
@@ -180,7 +223,7 @@ read -p "Enter ISO path [NONE]: " image
 if [[ "$image" == "" ]]; then image=NONE; fi
 
 echo
-cd $resdir/Windows && ./windowsdisk.sh $system $fstyp $uefint "$volname" "$image" $tgtdsk
+cd $resdir/Windows && ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $tgtdsk
 cd ..
 }
 
@@ -195,6 +238,8 @@ select_err () {
 echo "Invalid selection try again."
 }
 
+RED='\033[1;31m'
+NC='\033[0m' # No Color
 system=`uname`
 uefint_url="https://raw.githubusercontent.com/pbatard/rufus/master/res/uefi/uefi-ntfs.img"
 
