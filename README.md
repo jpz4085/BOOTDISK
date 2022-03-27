@@ -8,12 +8,13 @@ This utility consists of a set of BASH scripts that will automatically partition
 
 - MS-DOS 8.0: Create a boot disk using the DOS version included with Windows XP to 8.1. This option will only be available by extracting the DOS system files from the diskcopy.dll library found under Windows\SysWOW64 on a working system or in the same folder inside the install.wim archive on Windows ISO media. The files are proprietary and not included with BOOTDISK.
 
-- Windows 7-10: Create Windows bootable media and optionally extract an ISO install image to the disk. When using exFAT or NTFS format the disk can be made UEFI bootable using [UEFI:NTFS](https://github.com/pbatard/uefi-ntfs) which is downloaded by the main script.
+- Windows 7-10: Create Windows bootable media using GPT or MBR partition schemes and optionally extract an ISO install image to the disk. When using exFAT or NTFS format the disk can be made UEFI bootable using [UEFI:NTFS](https://github.com/pbatard/uefi-ntfs) which is downloaded by the main script.
 
-### Installation/Uninstallation
+### Install/Update/Uninstall
 ```
 make (build exfatboot, macOS only)
 sudo make install
+sudo make update
 sudo make uninstall
 ```
 
@@ -28,5 +29,5 @@ This can also be done before installation of BOOTDISK without requiring sudo.
 
 ### Requirements
 
-Linux packages: curl, p7zip, ms-sys, mtools, exfat-fuse, exfat-utils and ntfs-3g.  
-macOS packages: p7zip and mtools. These can be downloaded using MacPorts or Homebrew.
+Linux packages: curl, p7zip, ms-sys, mtools, exfat-fuse, exfat-utils and ntfs-3g. User should be member of "disk" group to allow unprivileged device access.
+macOS packages: p7zip, mtools and bash (above version 3.2). These can be downloaded using MacPorts or Homebrew. Optionally ms-sys and sgdisk are supported if present.

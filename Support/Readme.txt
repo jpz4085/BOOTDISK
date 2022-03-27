@@ -14,13 +14,13 @@ Available selections:
 FreeDOS 1.2 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
 
 MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows XP to 8.1. The DOS system
-files must be extracted from diskcopy.dll and patched using the script provided in the Support folder.
-The library can be found under Windows\SysWOW64 on a working system or inside install.wim on ISO media.
+files must be extracted from the diskcopy.dll library using the script provided in the Support folder.
+This file can be found under Windows\SysWOW64 on a working system and inside install.wim on ISO media.
 
-Windows – Create a bootable Windows installation disk and optionally extract an ISO image to the disk.
-Under Linux the ISO file path must not contain single quotes so copy/paste the file into terminal but
-not drag and drop. When using exFAT or NTFS format the disk can be made UEFI bootable using UEFI:NTFS
-which is downloaded automatically when launching the main script.
+Windows – Create bootable Windows installation media using GPT or MBR partition schemes and optionally
+extract an ISO image to the disk. Under Linux the ISO file path must not contain single quotes so copy
+and paste the file into terminal but don't drag and drop. When using exFAT or NTFS format the disk can
+be made UEFI bootable using UEFI:NTFS which is downloaded automatically when launching the main script.
 
 Requirements:
 =============
@@ -29,7 +29,9 @@ Supported on Linux and macOS with the appropriate packages installed as listed b
 
 Linux requires curl, p7zip, ms-sys, mtools, exfat-fuse, exfat-utils and ntfs-3g. See the documentation
 for your distribution. If no legacy boot support if desired for some reason then ms-sys can be omitted
-and the script can be used to create UEFI bootable Windows media only.
+and the script can be used to create UEFI bootable Windows media only. User should be member of "disk"
+group to allow unprivileged device access.
 
-macOS requires p7zip and mtools but can optionally use ms-sys for legacy EXFAT boot support instead of
-the exfatboot utility. Apple provides no NTFS formatting or write support so neither does the script.
+macOS requires p7zip, mtools and bash (above version 3.2). These can be installed using the MacPorts or
+Homebrew package managers. Additionally ms-sys can be used for legacy EXFAT boot support and sgdisk for
+GPT partitioning. Apple provides no NTFS formatting or write support so neither does the script.
