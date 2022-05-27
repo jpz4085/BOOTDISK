@@ -121,6 +121,12 @@ done
 
 read -p "Enter label [FREEDOS]: " volname
 if [[ "$volname" == "" ]]; then volname=FREEDOS; fi
+n=${#volname}
+while [ $n -gt 11 ]; do
+      echo -e "${RED}Label must be eleven characters or less.${NC}"
+      read -p "Enter label [WINDOWS]: " volname
+      n=${#volname}
+done
 
 echo
 cd $resdir/FreeDOS && ./freedosdisk.sh $system $fstyp "$volname" $tgtdsk
@@ -155,6 +161,12 @@ done
 
 read -p "Enter label [MSDOS80]: " volname
 if [[ "$volname" == "" ]]; then volname=MSDOS80; fi
+n=${#volname}
+while [ $n -gt 11 ]; do
+      echo -e "${RED}Label must be eleven characters or less.${NC}"
+      read -p "Enter label [WINDOWS]: " volname
+      n=${#volname}
+done
 
 echo
 cd $resdir/MS-DOS && ./msdosdisk.sh $system $fstyp "$volname" $tgtdsk
@@ -219,6 +231,26 @@ fi
 
 read -p "Enter label [WINDOWS]: " volname
 if [[ "$volname" == "" ]]; then volname=WINDOWS; fi
+n=${#volname}
+if [[ "$system" == "Darwin" || $fstyp == "FAT32" ]]; then
+   while [ $n -gt 11 ]; do
+       echo -e "${RED}Label must be eleven characters or less.${NC}"
+       read -p "Enter label [WINDOWS]: " volname
+       n=${#volname}
+   done
+elif [[ "$system" == "Linux" && $fstyp == "EXFAT" ]]; then
+   while [ $n -gt 15 ]; do
+         echo -e "${RED}Label must be fifteen characters or less.${NC}"
+         read -p "Enter label [WINDOWS]: " volname
+         n=${#volname}
+   done
+elif [[ "$system" == "Linux" && $fstyp == "NTFS" ]]; then
+     while [ $n -gt 128 ]; do
+           echo -e "${RED}Label must be 128 characters or less.${NC}"
+           read -p "Enter label [WINDOWS]: " volname
+           n=${#volname}
+     done
+fi
 read -p "Enter ISO path [NONE]: " image
 if [[ "$image" == "" ]]; then image=NONE; fi
 
