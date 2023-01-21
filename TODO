@@ -1,5 +1,8 @@
 BOOTDISK TODO
 =============
 
-Maybe add support for Windows XP install disk?
-Maybe add support to run on OpenBSD and others?
+Add option to install Windows 11 on unsupported hardware.
+Add option to create basic Windows OOBE answer files.
+Add support if possible for creating Windows to Go media.
+Add support to calculate checksums of files and images.
+Possibly add support for OpenBSD and FreeBSD.
