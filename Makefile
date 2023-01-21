@@ -1,4 +1,4 @@
-# BOOTDISK v1.1
+# BOOTDISK v1.2
 #
 # Makefile for Darwin and Linux
 #
@@ -29,6 +29,7 @@ ifeq ($(OS),Darwin)
 	install -m 755 Support/click_ignore.scpt $(RESDIR)/Support
 endif
 	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
+	install -m 755 Support/uefishelldisk.sh $(RESDIR)/Support
 	install -m 644 Support/Readme.txt $(RESDIR)/Support
 	rsync -r --chmod=u=rwx,go=rx FreeDOS $(RESDIR)
 	rsync -r --chmod=u=rwx,go=rx MS-DOS $(RESDIR)
@@ -45,11 +46,14 @@ endif
 update:
 	$(RM) $(BINDIR)/bootdisk
 	$(RM) $(RESDIR)/Support/Readme.txt
+	$(RM) $(RESDIR)/Support/extract_msdos.sh
 	find $(RESDIR) -type f -name '*disk.sh' -delete
 	install -m 755 bootdisk.sh $(BINDIR)/bootdisk
 	install -m 755 FreeDOS/freedosdisk.sh $(RESDIR)/FreeDOS
 	install -m 755 MS-DOS/msdosdisk.sh $(RESDIR)/MS-DOS
 	install -m 644 Support/Readme.txt $(RESDIR)/Support
+	install -m 755 Support/uefishelldisk.sh $(RESDIR)/Support
+	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
 	install -m 755 Windows/windowsdisk.sh $(RESDIR)/Windows
 
 clean:
