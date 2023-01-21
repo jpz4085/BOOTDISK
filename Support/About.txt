@@ -1,0 +1,43 @@
+				*************************************
+				BOOTDISK: Flash Drive Formatting Tool
+				*************************************
+				
+ABOUT
+
+This utility consists of a set of BASH scripts that will automatically partition and format removable
+media such as flash drives with FAT16/32, exFAT or NTFS and the required bootstrapping code to enable
+startup on UEFI and BIOS systems. It provides some functionality like the Rufus USB Tool for Windows.
+
+Available selections:
+=====================
+
+FreeDOS 1.2 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
+
+MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows XP to 8.1. The DOS system
+files must be extracted from the diskcopy.dll library using the option provided in the Tools sub-menu.
+This file can be found under the Windows\SysWOW64 folder on a working system and the same location in
+the sources\install.wim archive on install media. These files are not included with BOOTDISK.
+
+Windows – Create bootable Windows installation media using GPT or MBR partition schemes and optionally
+extract an ISO image to the disk. Under Linux the ISO file path must not contain single quotes so copy
+and paste the file into terminal but don't drag and drop. When using exFAT or NTFS format the disk can
+be made UEFI bootable using UEFI:NTFS which is downloaded automatically when launching the main script.
+
+UEFI Shell - Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
+
+Tools Menu - This sub-menu provides options to enable MS-DOS 8.0 support and download Windows and UEFI
+Shell ISO files using the Fido script. This requires PowerShell and is the same feature used by Rufus.
+
+Requirements:
+=============
+
+Supported on Linux and macOS with the appropriate packages installed as listed below.
+
+Linux requires curl, p7zip, ms-sys, mtools, exfat-fuse, exfat-utils and ntfs-3g. See the documentation
+for your distribution. If no legacy boot support if desired for some reason then ms-sys can be omitted
+and the tool will create UEFI bootable media only. Your account should be a member of the "disk" group
+to allow unprivileged device access.
+
+macOS requires p7zip, mtools and bash (above version 3.2). These can be installed using the MacPorts or
+Homebrew package managers. Additionally ms-sys can be used for legacy EXFAT boot support and sgdisk for
+GPT partitioning. Apple provides no native NTFS formatting or write support so neither does the script.
