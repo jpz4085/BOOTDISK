@@ -82,10 +82,10 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	mkfs.fat -F $fatsz -n "$label" /dev/$drive"1" > /dev/null
 	ms-sys -w /dev/$drive"1" > /dev/null
 	echo "Transfer system files..."
-	mcopy -s -m Files/* S:
-	mattrib +s +h +r S:/IO.SYS
-	mattrib +s +h +r S:/MSDOS.SYS
-	mattrib +r S:/COMMAND.COM
+	mcopy -s -m Files/* S: 2> /dev/null
+	mattrib +s +h +r S:/IO.SYS 2> /dev/null
+	mattrib +s +h +r S:/MSDOS.SYS 2> /dev/null
+	mattrib +r S:/COMMAND.COM 2> /dev/null
 	echo "Mount boot disk..."
 	sleep 1 && gio mount -d /dev/$drive"1"
 	rm $mtoolscfg

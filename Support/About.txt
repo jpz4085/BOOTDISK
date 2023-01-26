@@ -11,7 +11,7 @@ startup on UEFI and BIOS systems. It provides some functionality like the Rufus 
 Available selections:
 =====================
 
-FreeDOS 1.2 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
+FreeDOS 1.3 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
 
 MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows XP to 8.1. The DOS system
 files must be extracted from the diskcopy.dll library using the option provided in the Tools sub-menu.

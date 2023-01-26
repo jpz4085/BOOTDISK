@@ -40,12 +40,13 @@ if  [[ -e "$1"  ]]; then
     sudo perl -i -pe 's|\xfa\x80\x75\x09|\xfa\x80\xeb\x09|sg' ../MS-DOS/Files/IO.SYS
     sudo mkdir ../MS-DOS/Files/SYSTEM && sudo mv ../MS-DOS/Files/{DISPLAY.SYS,EGA*.*,KEY*.*,MODE.COM} ../MS-DOS/Files/SYSTEM
     sudo touch -r ../MS-DOS/Files/MSDOS.SYS ../MS-DOS/Files/COMMAND.COM ../MS-DOS/Files/IO.SYS
-    printf '@echo off\r\nset PATH=.;\;\SYSTEM\r\n' | sudo tee ../MS-DOS/Files/AUTOEXEC.BAT > /dev/null
+    sudo 7z e doslfn.zip *.tbl *.gbk doslfn.com -o../MS-DOS/Files/SYSTEM > /dev/null
+    printf '@echo off\r\nset PATH=.;\;\SYSTEM\r\nDOSLFN.COM\r\n' | sudo tee ../MS-DOS/Files/AUTOEXEC.BAT > /dev/null
     echo "Delete floppy disk image..."
     rm bootdisk.img
     echo "Finished!"
     echo
-    sleep 3
+    sleep 2
 else
     echo "Unable to access the specified file."
     echo

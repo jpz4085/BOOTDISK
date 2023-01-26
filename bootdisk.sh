@@ -7,7 +7,7 @@
 title_block () {
 cat<<EOF
 ===========================
-    ---BOOTDISK v1.2---
+    ---BOOTDISK v1.3---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -27,7 +27,7 @@ do
 clear
 title_block
 cat<<EOF
-FreeDOS 1.2  (1)
+FreeDOS 1.3  (1)
 MS-DOS  8.0  (2)
 Windows 7-11 (3)
 UEFI Shell   (4)
@@ -56,7 +56,7 @@ do
 clear
 title_block
 cat<<EOF
-FreeDOS 1.2  (1)
+FreeDOS 1.3  (1)
 Windows 7-11 (2)
 UEFI Shell   (3)
 Tools Menu   (4)
@@ -125,7 +125,7 @@ done
 
 fdosdisk () {
 clear
-echo "   FreeDOS 1.2 Boot Disk Script    "
+echo "   FreeDOS 1.3 Boot Disk Script    "
 echo "-----------------------------------"
 if [[ "$system" == "Darwin" ]]; then
    read -p "Enter target disk [disk#]: " tgtdsk
@@ -194,7 +194,7 @@ if [[ "$volname" == "" ]]; then volname=MSDOS80; fi
 n=${#volname}
 while [ $n -gt 11 ]; do
       echo -e "${RED}Label must be eleven characters or less.${NC}"
-      read -p "Enter label [WINDOWS]: " volname
+      read -p "Enter label [MSDOS80]: " volname
       n=${#volname}
 done
 

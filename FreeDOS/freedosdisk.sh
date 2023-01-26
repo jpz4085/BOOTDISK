@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Bootdisk - FreeDOS 1.2 script.
+# Bootdisk - FreeDOS 1.3 script.
 #
 # Read options passed then set up format and disk variables.
 
@@ -46,6 +46,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Transfer system files..."
 	mcopy -s -m Files/* S:
 	mmove "S:/FDOS/BIN/EDIT.HLP" S:
+	mattrib +h S:/EDIT.HLP
 	echo "Mount boot disk..."
 	diskutil mount $drive's1' > /dev/null
 	echo "Disable Spotlight indexing..."
@@ -86,8 +87,9 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	   ms-sys -4 /dev/$drive"1" > /dev/null
 	fi
 	echo "Transfer system files..."
-	mcopy -s -m Files/* S:
-	mmove "S:/FDOS/BIN/EDIT.HLP" S:
+	mcopy -s -m Files/* S: 2> /dev/null
+	mmove "S:/FDOS/BIN/EDIT.HLP" S: 2> /dev/null
+	mattrib +h S:/EDIT.HLP 2> /dev/null
 	echo "Mount boot disk..."
 	sleep 1 && gio mount -d /dev/$drive"1"
 	rm $mtoolscfg
