@@ -79,7 +79,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	echo "Prepare disk and make bootable (sudo required)..."
 	echo ',,'$pty',*;' | sudo sfdisk /dev/$drive > /dev/null
-	ms-sys -w /dev/$drive > /dev/null && sleep 1
+	ms-sys -a /dev/$drive > /dev/null && sleep 1
 	mkfs.fat -F $fatsz -n "$label" /dev/$drive"1" > /dev/null
 	if [[ $pty == "e" ]]; then
 	   ms-sys -5 /dev/$drive"1" > /dev/null
