@@ -138,8 +138,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	      ms-sys -8 /dev/$drive"1" > /dev/null
 	   fi
 	elif [[ $fstyp == "EXFAT" ]]; then
-	     part_offset=`blockdev --report /dev/$drive$num | grep /dev/$drive$num | awk '{print $5}'`
-	     mkexfatfs -n "$label" -p $part_offset /dev/$drive$num > /dev/null
+	     mkfs.exfat -L "$label" /dev/$drive$num > /dev/null
 	elif [[ $fstyp == "NTFS" ]]; then
 	     mkntfs -Q -L "$label" /dev/$drive$num > /dev/null
 	fi
