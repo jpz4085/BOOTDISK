@@ -45,7 +45,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	newfs_msdos -B Sectors/'fat'$fatsz'pbr'.bin -F $fatsz -v "$label" /dev/'r'$drive's1' > /dev/null
 	echo "Transfer system files..."
 	mcopy -s -m Files/* S:
-	mmove "S:/FDOS/BIN/EDIT.HLP" S:
+	mmove "S:/FREEDOS/BIN/EDIT.HLP" S:
 	mattrib +h S:/EDIT.HLP
 	echo "Mount boot disk..."
 	diskutil mount $drive's1' > /dev/null
@@ -88,7 +88,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	fi
 	echo "Transfer system files..."
 	mcopy -s -m Files/* S: 2> /dev/null
-	mmove "S:/FDOS/BIN/EDIT.HLP" S: 2> /dev/null
+	mmove "S:/FREEDOS/BIN/EDIT.HLP" S: 2> /dev/null
 	mattrib +h S:/EDIT.HLP 2> /dev/null
 	echo "Mount boot disk..."
 	sleep 1 && gio mount -d /dev/$drive"1"
