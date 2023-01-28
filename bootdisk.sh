@@ -418,6 +418,13 @@ select_err () {
 echo "Invalid selection try again."
 }
 
+# Set resource location for platform.
+if [[ $system == "Darwin" ]]; then
+   resdir="/opt/local/share/BOOTDISK"
+else
+   resdir="/usr/local/share/BOOTDISK"
+fi
+
 RED='\033[1;31m'
 NC='\033[0m' # No Color
 system=`uname`
@@ -427,12 +434,6 @@ uefint_url="https://raw.githubusercontent.com/pbatard/rufus/master/res/uefi/uefi
 uefint_commit_url="https://api.github.com/repos/pbatard/rufus/commits?path=res/uefi/uefi-ntfs.img&page=1&per_page=1"
 uefint_commit_date=$(curl -s $uefint_commit_url | jq -r '.[0].commit.committer.date' | cut -f1 -d"T")
 uefint_image_date=$(stat -c '%y' $resdir/Support/uefi-ntfs.img 2> /dev/null | awk '{print $1}')
-
-if [[ $system == "Darwin" ]]; then
-   resdir="/opt/local/share/BOOTDISK"
-else
-   resdir="/usr/local/share/BOOTDISK"
-fi
 
 if [[ $system != "Darwin" && $system != "Linux" ]]; then
     echo "Unsupported platform detected."
