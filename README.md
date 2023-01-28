@@ -27,7 +27,7 @@ sudo make uninstall
 
 Requirements
 ------------
-**Common packages:** p7zip, mtools and powershell.  
+**Common packages:** p7zip, mtools, powershell and jq (JSON processor).  
 Install these in addition to the packages for your platform.
 
 **Linux packages:** curl, ms-sys, exfat-fuse, exfat-utils and ntfs-3g.  

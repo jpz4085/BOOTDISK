@@ -424,6 +424,9 @@ system=`uname`
 fido_url="https://github.com/pbatard/Fido/releases/latest"
 fido_url_ver=$(curl -IkLs -o /dev/null -w %{url_effective} $fido_url | grep -o "[^/]*$"| sed "s/v//g")
 uefint_url="https://raw.githubusercontent.com/pbatard/rufus/master/res/uefi/uefi-ntfs.img"
+uefint_commit_url="https://api.github.com/repos/pbatard/rufus/commits?path=res/uefi/uefi-ntfs.img&page=1&per_page=1"
+uefint_commit_date=$(curl -s $uefint_commit_url | jq -r '.[0].commit.committer.date' | cut -f1 -d"T")
+uefint_image_date=$(stat -c '%y' $resdir/Support/uefi-ntfs.img 2> /dev/null | awk '{print $1}')
 
 if [[ $system == "Darwin" ]]; then
    resdir="/opt/local/share/BOOTDISK"
@@ -436,7 +439,8 @@ if [[ $system != "Darwin" && $system != "Linux" ]]; then
     exit 1
 fi
 
-if [[ ! -e $resdir/Support/uefi-ntfs.img ]]; then
+if [[ ! -e $resdir/Support/uefi-ntfs.img ]] || [[ $uefint_commit_date > $uefint_image_date ]; then
+	rm -f $resdir/Support/uefi-ntfs.img 2> /dev/null
 	curl -o $resdir/Support/uefi-ntfs.img $uefint_url 2> /dev/null
 fi
 
