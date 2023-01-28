@@ -439,7 +439,7 @@ if [[ $system != "Darwin" && $system != "Linux" ]]; then
     exit 1
 fi
 
-if [[ ! -e $resdir/Support/uefi-ntfs.img ]] || [[ $uefint_commit_date > $uefint_image_date ]; then
+if [[ ! -e $resdir/Support/uefi-ntfs.img ]] || [[ $uefint_commit_date > $uefint_image_date ]]; then
 	rm -f $resdir/Support/uefi-ntfs.img 2> /dev/null
 	curl -o $resdir/Support/uefi-ntfs.img $uefint_url 2> /dev/null
 fi
