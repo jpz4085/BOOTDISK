@@ -30,6 +30,7 @@ ifeq ($(OS),Darwin)
 endif
 	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
 	install -m 755 Support/uefishelldisk.sh $(RESDIR)/Support
+	install -m 755 Support/modtime.py $(RESDIR)/Support
 	install -m 644 Support/doslfn.zip $(RESDIR)/Support
 	install -m 644 Support/About.txt $(RESDIR)/Support
 	rsync -r --chmod=u=rwx,go=rx FreeDOS $(RESDIR)
@@ -53,6 +54,7 @@ update:
 	install -m 755 FreeDOS/freedosdisk.sh $(RESDIR)/FreeDOS
 	install -m 755 MS-DOS/msdosdisk.sh $(RESDIR)/MS-DOS
 	install -m 644 Support/About.txt $(RESDIR)/Support
+	install -m 755 Support/modtime.py $(RESDIR)/Support
 	install -m 755 Support/uefishelldisk.sh $(RESDIR)/Support
 	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
 	install -m 755 Windows/windowsdisk.sh $(RESDIR)/Windows

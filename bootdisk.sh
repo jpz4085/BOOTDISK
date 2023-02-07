@@ -439,7 +439,7 @@ fi
 uefint_url="https://raw.githubusercontent.com/pbatard/rufus/master/res/uefi/uefi-ntfs.img"
 uefint_commit_url="https://api.github.com/repos/pbatard/rufus/commits?path=res/uefi/uefi-ntfs.img&page=1&per_page=1"
 uefint_commit_date=$(curl -s $uefint_commit_url | jq -r '.[0].commit.committer.date' | cut -f1 -d"T")
-uefint_image_date=$(stat -c '%y' $resdir/Support/uefi-ntfs.img 2> /dev/null | awk '{print $1}')
+uefint_image_date=$($resdir/Support/modtime.py $resdir/Support/uefi-ntfs.img 2> /dev/null | awk '{print $1}')
 
 if [[ ! -e $resdir/Support/uefi-ntfs.img ]] || [[ $uefint_commit_date > $uefint_image_date ]]; then
 	rm -f $resdir/Support/uefi-ntfs.img 2> /dev/null
