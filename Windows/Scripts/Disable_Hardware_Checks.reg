@@ -1,0 +1,7 @@
+Windows Registry Editor Version 5.00
+
+[SYSTEM\Setup\LabConfig]
+"BypassTPMCheck"=dword:00000001
+"BypassSecureBootCheck"=dword:00000001
+"BypassRAMCheck"=dword:00000001
+
