@@ -1,4 +1,4 @@
-# BOOTDISK v1.3
+# BOOTDISK v1.4
 #
 # Makefile for Darwin and Linux
 #
