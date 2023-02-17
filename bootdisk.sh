@@ -7,7 +7,7 @@
 title_block () {
 cat<<EOF
 ===========================
-    ---BOOTDISK v1.3---
+    ---BOOTDISK v1.4---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -108,15 +108,17 @@ do
 clear
 title_block
 cat<<EOF
-Extract MS-DOS 8.0    (1)
-Download an ISO file  (2)
-Return to Main Menu   (3)
+Extract MS-DOS 8.0          (1)
+Download an ISO file        (2)
+Custom Windows installation (3)
+Return to Main Menu         (4)
 EOF
 lower_border
 read -p"Enter Choice: "
 case "$REPLY" in
 "1")  extractdos  ;;
 "2")  fido_script ;;
+"3")  customize   ;;
 "3")  break       ;;
  * )  select_err  ;;
 esac
@@ -159,8 +161,7 @@ while [ $n -gt 11 ]; do
 done
 
 echo
-cd $resdir/FreeDOS && ./freedosdisk.sh $system $fstyp "$volname" $tgtdsk
-cd ..
+(cd $resdir/FreeDOS; ./freedosdisk.sh $system $fstyp "$volname" $tgtdsk)
 }
 
 msdosdisk () {
@@ -199,8 +200,7 @@ while [ $n -gt 11 ]; do
 done
 
 echo
-cd $resdir/MS-DOS && ./msdosdisk.sh $system $fstyp "$volname" $tgtdsk
-cd ..
+(cd $resdir/MS-DOS; ./msdosdisk.sh $system $fstyp "$volname" $tgtdsk)
 }
 
 windowsdisk () {
@@ -285,8 +285,7 @@ read -p "Enter ISO path [NONE]: " image
 if [[ "$image" == "" ]]; then image=NONE; fi
 
 echo
-cd $resdir/Windows && ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $tgtdsk
-cd ..
+(cd $resdir/Windows; ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $tgtdsk)
 }
 
 uefi_shell () {
@@ -341,7 +340,7 @@ else
     if [[ "$system" == "Darwin" ]]; then
        read -p "Enter path to disk [/Volumes/Untitled]: " target
     elif [[ "$system" == "Linux" ]]; then
-         read -p "Enter path to disk [/media/user/USB]: " target
+         read -p "Enter path to disk [/media/user/USBDISK]: " target
     fi
     prtshm="CURRENT"
     fstyp="N/A"
@@ -355,8 +354,7 @@ while [[ "$image" != *".iso"* ]]; do
 done
 
 echo
-cd $resdir/Support && ./uefishelldisk.sh $system "$image" "$target" $prtshm $fstyp "$volname"
-cd ..
+(cd $resdir/Support; ./uefishelldisk.sh $system "$image" "$target" $prtshm $fstyp "$volname")
 }
 
 fido_script () {
@@ -405,8 +403,156 @@ echo "     Extract MS-DOS 8.0 files     "
 echo "----------------------------------"
 read -p "Enter path to diskcopy.dll: " file
 echo
-cd $resdir/Support && ./extract_msdos.sh "$file"
-cd ..
+(cd $resdir/Support; ./extract_msdos.sh "$file")
+}
+
+customize () {
+clear
+echo "    Customize Windows Installation Media    "
+echo "--------------------------------------------"
+if   [[ "$system" == "Darwin" ]]; then
+     read -p "Enter path to install disk [/Volumes/Untitled]: " windisk
+elif [[ "$system" == "Linux" ]]; then
+     read -p "Enter path to install disk [/media/user/USBDISK]: " windisk
+fi
+   
+if [[ ! -d $windisk ]]; then
+   echo
+   echo "Unable to access path:" $windisk
+   echo
+   read -p "Press any key to continue... " -n1 -s
+   return 1
+fi
+
+unsupported="false"
+bypassnro="false"
+# Check for Windows 11 media and provide options to disable hardware and Microsoft account requirements.
+if [[ $wimtools == "true" ]]; then
+    if  [[ $(wiminfo "$windisk"/sources/install.wim 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
+else
+    read -p "Is this a Windows 11 install disk [Y/N]? " eleven
+    eleven=${eleven^^}
+    while [[ $eleven != "Y" && $eleven != "N" ]]; do
+          echo -e "${RED}Invalid entry. Try again.${NC}"
+          read -p "Is this a Windows 11 install disk [Y/N]? " eleven
+          eleven=${eleven^^}
+    done
+    if  [[ $eleven == "Y" ]]; then win11opts; fi
+fi
+
+localize="false"
+read -p "Use the current language settings on this system [Y/N]? " uselocale
+uselocale=${uselocale^^}
+while [[ $uselocale != "Y" && $uselocale != "N" ]]; do
+ echo -e "${RED}Invalid entry. Try again.${NC}"
+ read -p "Use the current language settings on this system [Y/N]? " uselocale
+ uselocale=${uselocale^^}
+done
+if  [[ $uselocale == "Y" ]]; then localize="true"; fi
+
+settimezone="false"
+if [[ $(command -v pwsh) != "" ]]; then
+   read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
+   usetimezone=${usetimezone^^}
+   while [[ $usetimezone != "Y" && $usetimezone != "N" ]]; do
+         echo -e "${RED}Invalid entry. Try again.${NC}"
+         read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
+         usetimezone=${usetimezone^^}
+   done
+   if [[ $usetimezone == "Y" ]]; then settimezone="true"; fi
+fi
+
+useraccounts="false"
+read -p "Create a local user account [Y/N]? " newuser
+newuser=${newuser^^}
+while [[ $newuser != "Y" && $newuser != "N" ]]; do
+ echo -e "${RED}Invalid entry. Try again.${NC}"
+ read -p "Create a local user account [Y/N]? " newuser
+ newuser=${newuser^^}
+done
+if  [[ $newuser == "Y" ]]; then
+    useraccounts="true"
+    read -p "Enter a login name for new account [$USER]: " loginname
+    if [[ $loginname == "" ]]; then
+       loginname="$USER"
+    fi
+    if   [[ $system == "Darwin" ]]; then
+         username=$(id -F)
+    elif [[ $system == "Linux" ]]; then
+         username=$(getent passwd $USER | awk -F: '{print $5}')
+    fi
+    read -p "Enter the full name for new account [$username]: " fullname
+    if [[ $fullname == "" ]]; then
+       fullname="$username"
+    fi
+    read -p "Enter a description for new account: " description
+fi
+
+skipwifisetup="false"
+read -p "Skip the Join Wireless Network screen [Y/N]? " wifiscreen
+wifiscreen=${wifiscreen^^}
+while [[ $wifiscreen != "Y" && $wifiscreen != "N" ]]; do
+      echo -e "${RED}Invalid entry. Try again.${NC}"
+      read -p "Skip the Join Wireless Network screen [Y/N]? " wifiscreen
+      wifiscreen=${wifiscreen^^}
+done
+if  [[ $wifiscreen == "Y" ]]; then skipwifisetup="true"; fi
+
+disdatacol="false"
+read -p "Disable data collection and privacy questions [Y/N]? " privacy
+privacy=${privacy^^}
+while [[ $privacy != "Y" && $privacy != "N" ]]; do
+      echo -e "${RED}Invalid entry. Try again.${NC}"
+      read -p "Disable data collection and privacy questions [Y/N]? " privacy
+      privacy=${privacy^^}
+done
+if  [[ $privacy == "Y" ]]; then disdatacol="true"; fi
+
+if  [[ $skipwifisetup == "true" || $disdatacol == "true" ]]; then oobe="true"; else oobe="false"; fi
+
+disautoenc="false"
+read -p "Disable BitLocker automatic drive encryption [Y/N]? " bitlocker
+bitlocker=${bitlocker^^}
+while [[ $bitlocker != "Y" && $bitlocker != "N" ]]; do
+      echo -e "${RED}Invalid entry. Try again.${NC}"
+      read -p "Disable BitLocker automatic drive encryption [Y/N]? " bitlocker
+      bitlocker=${bitlocker^^}
+done
+if  [[ $bitlocker == "Y" ]]; then disautoenc="true"; fi
+
+if  [[ $unsupported == "false" && $localize == "false" ]]; then
+    mkdir -p "$windisk/sources/\$OEM\$/\$\$/Panther"
+    xmlpath="$windisk/sources/\$OEM\$/\$\$/Panther/unattend.xml"
+else
+    xmlpath="$windisk/autounattend.xml"
+fi
+
+(cd $resdir/Windows/Scripts; ./unattend.sh $unsupported $localize $bypassnro $oobe $settimezone $useraccounts $skipwifisetup $disdatacol $disautoenc "$loginname" "$fullname" "$description" > "$xmlpath")
+}
+
+win11opts () {
+read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
+bypasshw=${bypasshw^^}
+while [[ $bypasshw != "Y" && $bypasshw != "N" ]]; do
+      echo -e "${RED}Invalid entry. Try again.${NC}"
+      read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
+      bypasshw=${bypasshw^^}
+done
+if  [[ $bypasshw == "Y" ]]; then
+    if  [[ $wimtools == "true" && $(command -v reged) != "" ]]; then
+        (cd $resdir/Windows/Scripts; ./unsupported.sh "$windisk")
+    else
+        unsupported="true"
+    fi
+fi
+read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
+msaccount=${msaccount^^}
+while [[ $msaccount != "Y" && $msaccount != "N" ]]; do
+      echo -e "${RED}Invalid entry. Try again.${NC}"
+      read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
+      msaccount=${msaccount^^}
+done
+if  [[ $msaccount == "Y" ]]; then bypassnro="true"; fi
 }
 
 show_about () {
@@ -418,6 +564,7 @@ read -n 1 -s -r -p "Press any key to continue"
 
 select_err () {
 echo "Invalid selection try again."
+sleep 1
 }
 
 # Script starts here.
@@ -444,6 +591,13 @@ uefint_image_date=$($resdir/Support/modtime.py $resdir/Support/uefi-ntfs.img 2> 
 if [[ ! -e $resdir/Support/uefi-ntfs.img ]] || [[ $uefint_commit_date > $uefint_image_date ]]; then
 	rm -f $resdir/Support/uefi-ntfs.img 2> /dev/null
 	curl -o $resdir/Support/uefi-ntfs.img $uefint_url 2> /dev/null
+fi
+
+# Determine if wimlib and its tools are installed.
+if  [[ $(command -v wimlib-imagex) == "" ]]; then
+    wimtools="false"
+else
+    wimtools="true"
 fi
 
 # Display menu for available options.
