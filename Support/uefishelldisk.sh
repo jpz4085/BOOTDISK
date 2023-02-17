@@ -43,8 +43,8 @@ if    [[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
       echo
       read -p "Press any key to continue... " -n1 -s
       exit 1
-elif  [[ $erase == "true" ]]; then
-      if  [[ -e /dev/$drive && $system == "Darwin" ]]; then
+elif  [[ $erase == "true" && -e /dev/$drive ]]; then
+      if  [[ $system == "Darwin" ]]; then
           disk_size=`diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-`
 
 	  if [[ $fstyp == "FAT16" && $disk_size -ge 2147483648 ]]; then
@@ -82,7 +82,7 @@ elif  [[ $erase == "true" ]]; then
           mdutil -d /Volumes/"$label" &> /dev/null
           extract_shell "$isofile" /Volumes/"$label"
       fi
-      if  [[ -e /dev/$drive && $system == "Linux" ]]; then
+      if  [[ $system == "Linux" ]]; then
           disk_length=`sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}'`
           disk_size=`blockdev --getsize64 /dev/$drive`
 	  disk_offset=$(($disk_length - 2048))
