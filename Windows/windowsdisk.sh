@@ -112,7 +112,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	echo "Unmount volumes..."
 	umount /dev/$drive?
 	echo "Erase MBR/GPT structures..."
-	dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
+	dd if=/dev/zero of=/dev/$drive bs=1M count=3 2> /dev/null
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	echo "Prepare disk and make bootable (sudo required)..."
 	if [[ $uefint == "Y" ]]; then
