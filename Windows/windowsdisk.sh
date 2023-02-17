@@ -24,14 +24,25 @@ if [[ $uefint == "Y" ]]; then num=2; else num=1; fi  #Windows media partition nu
 
 ignore_btn="osascript ../Support/click_ignore.scpt" #Close macOS disk warning dialogue.
 
-# Verify selected drive and ISO file is valid and run actions.
+# Verify selected ISO file then check size of install archive.
+if  [[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
+    echo "Unable to access Windows ISO file."
+    echo
+    read -p "Press any key to continue... " -n1 -s
+    exit 1
+fi
+if  [[ "$isofile" == *".iso"* ]]; then
+    wimsize=$(7z l "$isofile" | grep install.wim | awk '{print $4}')
+    if  [[ "$fstyp" == "FAT32" && $wimsize -ge 4294967296 ]]; then
+        echo "The install.wim archive is larger than 4GBs. Please use NTFS or EXFAT."
+        echo
+        read -p "Press any key to continue... " -n1 -s
+        exit 1
+    fi
+fi
 
-if	[[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
-	echo "Unable to access Windows ISO file."
-	echo
-	read -p "Press any key to continue... " -n1 -s
-	exit 1
-elif	[[ -e /dev/$drive && $system == "Darwin" ]]; then
+# Verify selected disk and run requested actions.
+if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Erase selected flash drive..."
 	if   [[ $prtshm == "MBR" ]]; then
 	     diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
