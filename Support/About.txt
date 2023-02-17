@@ -4,39 +4,51 @@
 				
 ABOUT
 
-This utility consists of a set of BASH scripts that will automatically partition and format removable
-media such as flash drives with FAT16/32, exFAT or NTFS and the required bootstrapping code to enable
-startup on UEFI and BIOS systems. It provides some functionality like the Rufus USB Tool for Windows.
+This utility consists of a set of BASH scripts that will automatically configure removable media using
+GPT or MBR partition schemes and format with FAT16/32, exFAT or NTFS and the required bootstrapping code to
+enable startup on UEFI and BIOS systems. It provides functionality similar to the Rufus USB Tool for Windows.
 
 Available selections:
 =====================
 
 FreeDOS 1.3 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
 
-MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows XP to 8.1. The DOS system
-files must be extracted from the diskcopy.dll library using the option provided in the Tools sub-menu.
-This file can be found under the Windows\SysWOW64 folder on a working system and the same location in
-the sources\install.wim archive on install media. These files are not included with BOOTDISK.
+MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows from XP to 8.1.
+These files are not included with BOOTDISK so this option must be enabled from the Tools sub-menu.
 
-Windows – Create bootable Windows installation media using GPT or MBR partition schemes and optionally
-extract an ISO image to the disk. Under Linux the ISO file path must not contain single quotes so copy
-and paste the file into terminal but don't drag and drop. When using exFAT or NTFS format the disk can
-be made UEFI bootable using UEFI:NTFS which is downloaded automatically when launching the main script.
+Windows – Create bootable Windows media and optionally extract an ISO image to the disk.
+When using exFAT or NTFS format the disk can be made UEFI bootable using UEFI:NTFS which is downloaded
+automatically when launching the main script.
 
 UEFI Shell - Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
 
-Tools Menu - This sub-menu provides options to enable MS-DOS 8.0 support and download Windows and UEFI
-Shell ISO files using the Fido script. This requires PowerShell and is the same feature used by Rufus.
+Tools Menu - Extract MS-DOS 8.0: Provide the path to the diskcopy.dll library from the Windows\SysWOW64
+folder on a working system or the same location in the sources\install.wim archive on install media.
+ 
+Tools Menu - Custom Windows installation: Automatically create a local account, configure privacy/data
+collection settings, use the current language and timezone settings, skip wireless network setup, and
+disable automatic BitLocker encryption.
+
+Tools Menu - Custom Windows installation: Disable the mandatory Microsoft account screen and bypass the
+hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
+
+Notes:
+======
+
+When entering file and folder paths at the prompts they should not contain any quotes so copy and
+paste the file into terminal but don't drag and drop. This will avoid invalid path errors.
 
 Requirements:
 =============
 
-Common packages: p7zip, mtools, powershell, and jq (JSON processor).
+Common packages: p7zip, mtools, chntpw, powershell, and jq (JSON processor).
 
-Linux packages: curl, ms-sys, exfat-fuse, exfat-progs and ntfs-3g.
-Note that if ms-sys is omitted the tool will create UEFI bootable media only. Also your account should
-be a member of the "disk" group to allow unprivileged device access. Sudo is only used where mandatory.
+Linux packages: curl, ms-sys, exfat-fuse, exfa-progs, ntfs-3g and wimtools.
+Note that if ms-sys is omitted the tool will create UEFI bootable media only.
+Also your account should be a member of the "disk" group to allow unprivileged device access.
+Sudo is only used where mandatory.
 
-macOS packages: bash (above version 3.2).
-These can be installed using the MacPorts or Homebrew package managers. Additionally ms-sys can be used
-for legacy EXFAT booting and sgdisk for GPT partitioning. Note that NTFS is not supported at this time.
+macOS packages: bash (above version 3.2) and wimlib.
+These can be installed using the MacPorts or Homebrew package managers.
+Additionally ms-sys can be used for legacy EXFAT booting and sgdisk for GPT partitioning.
+Note that NTFS is not supported at this time.
