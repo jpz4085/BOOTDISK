@@ -591,7 +591,7 @@ if [[ $system == "Linux" && $(command -v mkfs.exfat) == "" ]]; then missing+=" e
 if [[ $system == "Linux" && $(command -v mount.exfat-fuse) == "" ]]; then missing+=" exfat-fuse"; fi
 if [[ $system == "Darwin" ]]; then
    bashver=$(bash --version | head -n 1 | awk '{print $4}' | cut -f1 -d'(')
-   if  [ "$(printf '%s\n' "3.2.57" "$bashver" | sort -V | head -n1)" != "3.2.57" ]; then
+   if  [ "$(printf '%s\n' "3.2.57" "$bashver" | sort -rV | head -n1)" == "3.2.57" ]; then
        missing+=" bash(>$bashver)"
    fi
 fi
