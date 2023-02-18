@@ -22,8 +22,13 @@ automatically when launching the main script.
 
 UEFI Shell - Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
 
+-----------------------------------------------------------------------------------------------------------
+
 Tools Menu - Extract MS-DOS 8.0: Provide the path to the diskcopy.dll library from the Windows\SysWOW64
 folder on a working system or the same location in the sources\install.wim archive on install media.
+
+Tools Menu - Download an ISO file using Fido: Download official retail Windows ISOs and UEFI Shell ISOs
+using the same PowerShell script employed by Rufus. Files are saved to the active user's Downloads folder.
  
 Tools Menu - Custom Windows installation: Automatically create a local account, configure privacy/data
 collection settings, use the current language and timezone settings, skip wireless network setup, and
@@ -31,6 +36,8 @@ disable automatic BitLocker encryption.
 
 Tools Menu - Custom Windows installation: Disable the mandatory Microsoft account screen and bypass the
 hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
+
+-----------------------------------------------------------------------------------------------------------
 
 Notes:
 ======
