@@ -119,7 +119,7 @@ case "$REPLY" in
 "1")  extractdos  ;;
 "2")  fido_script ;;
 "3")  customize   ;;
-"3")  break       ;;
+"4")  break       ;;
  * )  select_err  ;;
 esac
 done
@@ -580,6 +580,29 @@ elif [[ $system == "Linux" ]]; then
 else
      echo "Unsupported platform detected."
      exit 1
+fi
+
+# Check for required packages that are missing.
+if [[ $(command -v 7z) == "" ]]; then missing+=" p7zip"; fi
+if [[ $(command -v jq) == "" ]]; then missing+=" jq"; fi
+if [[ $(command -v curl) == "" ]]; then missing+=" curl"; fi
+if [[ $system == "Linux" && $(command -v mkntfs) == "" ]]; then missing+=" ntfs-3g"; fi
+if [[ $system == "Linux" && $(command -v mkfs.exfat) == "" ]]; then missing+=" exfatprogs"; fi
+if [[ $system == "Linux" && $(command -v mount.exfat-fuse) == "" ]]; then missing+=" exfat-fuse"; fi
+if [[ $system == "Darwin" ]]; then
+   bashver=$(bash --version | head -n 1 | awk '{print $4}' | cut -f1 -d'(')
+   if  [ "$(printf '%s\n' "3.2.57" "$bashver" | sort -V | head -n1)" != "3.2.57" ]; then
+       missing+=" bash(>$bashver)"
+   fi
+fi
+if [[ $system == "Darwin" ]] || [[ $system == "Linux" && -e /usr/local/bin/ms-sys ]]; then
+   if [[ $(command -v mtools) == "" ]]; then
+      missing+=" mtools"
+   fi
+fi
+if [[ "$missing" != "" ]]; then
+   echo "The following packages are required:""$missing"
+   exit 1
 fi
 
 # Download UEFI:NTFS bootloader if missing or outdated.
