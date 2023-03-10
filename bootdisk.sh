@@ -260,17 +260,17 @@ else
 fi
 
 read -p "Enter label [WINDOWS]: " volname
-if [[ "$volname" == "" ]]; then volname=WINDOWS; fi
 n=${#volname}
-if [[ "$system" == "Darwin" || $fstyp == "FAT32" ]]; then
+if [[ $fstyp == "FAT32" ]]; then
+   volname=${volname^^}
    while [ $n -gt 11 ]; do
        echo -e "${RED}Label must be eleven characters or less.${NC}"
        read -p "Enter label [WINDOWS]: " volname
        n=${#volname}
    done
 elif [[ "$system" == "Linux" && $fstyp == "EXFAT" ]]; then
-   while [ $n -gt 15 ]; do
-         echo -e "${RED}Label must be fifteen characters or less.${NC}"
+   while [ $n -gt 11 ]; do
+         echo -e "${RED}Label must be eleven characters or less.${NC}"
          read -p "Enter label [WINDOWS]: " volname
          n=${#volname}
    done
@@ -281,6 +281,7 @@ elif [[ "$system" == "Linux" && $fstyp == "NTFS" ]]; then
            n=${#volname}
      done
 fi
+if [[ "$volname" == "" ]]; then volname=WINDOWS; fi
 read -p "Enter ISO path [NONE]: " image
 if [[ "$image" == "" ]]; then image=NONE; fi
 
