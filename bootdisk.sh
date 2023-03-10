@@ -261,14 +261,8 @@ fi
 
 read -p "Enter label [WINDOWS]: " volname
 n=${#volname}
-if [[ $fstyp == "FAT32" ]]; then
-   volname=${volname^^}
-   while [ $n -gt 11 ]; do
-       echo -e "${RED}Label must be eleven characters or less.${NC}"
-       read -p "Enter label [WINDOWS]: " volname
-       n=${#volname}
-   done
-elif [[ "$system" == "Linux" && $fstyp == "EXFAT" ]]; then
+if [[ $fstyp == "FAT32" || $fstyp == "EXFAT" ]]; then
+   if [[ $fstyp == "FAT32" ]]; then volname=${volname^^}; fi
    while [ $n -gt 11 ]; do
          echo -e "${RED}Label must be eleven characters or less.${NC}"
          read -p "Enter label [WINDOWS]: " volname
