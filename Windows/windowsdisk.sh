@@ -11,7 +11,8 @@ fstyp="$3"
 uefint="$4"
 label="$5"
 isofile="$6"
-drive="$7"
+wimtools="$7"
+drive="$8"
 
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT32" ]]; then pty=c; fi                      #FAT32 LBA
@@ -33,8 +34,9 @@ if  [[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
 fi
 if  [[ "$isofile" == *".iso"* ]]; then
     wimsize=$(7z l "$isofile" | grep install.wim | awk '{print $4}')
-    if  [[ "$fstyp" == "FAT32" && $wimsize -ge 4294967296 ]]; then
-        echo "The install.wim archive is larger than 4GBs. Please use NTFS or EXFAT."
+    if  [[ "$fstyp" == "FAT32" && $wimsize -gt 4294967296 && $wimtools == "false" ]]; then
+        echo "FAT32 is not compatible with files larger than 4GBs."
+        echo "Please install wimlib or format disk as NTFS or EXFAT."
         echo
         read -p "Press any key to continue... " -n1 -s
         exit 1
@@ -111,8 +113,19 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Disable Spotlight indexing..."
 	mdutil -d /Volumes/"$label" &> /dev/null
 	if [[ "$isofile" == *".iso"* ]]; then
-	   echo "Extract Windows install files..."
-	   7z x "$isofile" -o/Volumes/"$label" > /dev/null
+ 	   if   [[ "$fstyp" == "FAT32" && $wimsize -gt 4294967296 ]]; then
+ 	        echo "Extract Windows install files..."
+	        7z x "$isofile" -xr\!install.wim -o/Volumes/"$label" > /dev/null
+	        echo "Mount install disk image..."
+	        hdiutil attach "$isofile" -mountpoint /tmp/isomount -nobrowse > /dev/null
+	        echo "Split install archive for FAT32..."
+	        wimsplit /tmp/isomount/sources/install.wim /Volumes/"$label"/sources/install.swm 3800 > /dev/null
+	        echo "Unmount install disk image..."
+	        hdiutil detach /tmp/isomount > /dev/null
+	   else
+	        echo "Extract Windows install files..."
+	        7z x "$isofile" -o/Volumes/"$label" > /dev/null
+	   fi
 	fi
 	echo "Finished!"
 	sleep 2
@@ -159,8 +172,19 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	echo "Mount boot disk..." && sleep 1
 	gio mount -d /dev/$drive$num
 	if [[ "$isofile" == *".iso"* ]]; then
-	   echo "Extract Windows install files..."
-	   7z x "$isofile" -o/media/$USER/"$label" > /dev/null
+ 	   if   [[ "$fstyp" == "FAT32" && $wimsize -gt 4294967296 ]]; then
+ 	        echo "Extract Windows install files..."
+	        7z x "$isofile" -xr\!install.wim -o/media/$USER/"$label" > /dev/null
+	        echo "Mount install disk image..."
+	        sudo mkdir -p /mnt/isomount && sudo mount -o loop "$isofile" /mnt/isomount
+	        echo "Split install archive for FAT32..."
+	        wimsplit /mnt/isomount/sources/install.wim /media/$USER/"$label"/sources/install.swm 3800 > /dev/null
+	        echo "Unmount install disk image..."
+	        sudo umount /mnt/isomount && sudo rm -d /mnt/isomount
+	   else
+	        echo "Extract Windows install files..."
+	        7z x "$isofile" -o/media/$USER/"$label" > /dev/null
+	   fi
 	   echo "Flush device write buffer..."
 	   sudo blockdev --flushbufs /dev/$drive$num
 	fi

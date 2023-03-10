@@ -286,7 +286,7 @@ read -p "Enter ISO path [NONE]: " image
 if [[ "$image" == "" ]]; then image=NONE; fi
 
 echo
-(cd $resdir/Windows; ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $tgtdsk)
+(cd $resdir/Windows; ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $wimtools $tgtdsk)
 }
 
 uefi_shell () {
