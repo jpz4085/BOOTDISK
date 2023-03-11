@@ -352,35 +352,48 @@ echo
 (cd $resdir/Support; ./uefishelldisk.sh $system "$image" "$target" $prtshm $fstyp "$volname")
 }
 
-fido_script () {
+fido_title () {
 clear
 echo "  Download an ISO file using Fido  "
 echo "-----------------------------------"
-# Download script if missing or not current version.
+}
+
+fido_script () {
+fido_title
+# Download script if missing or not current version then patch for Unix platforms.
 fido_url="https://github.com/pbatard/Fido/releases/latest"
 fido_url_ver=$(curl -IkLs -o /dev/null -w %{url_effective} $fido_url | grep -o "[^/]*$"| sed "s/v//g")
 if [[ ! -e $resdir/Support/Fido.ps1 || "$(grep "# Fido v" $resdir/Support/Fido.ps1 | tr -d [:alpha:]  | awk '{print $2}')" != "$fido_url_ver" ]]; then
    rm -f $resdir/Support/Fido.* 2> /dev/null && curl -Lo $resdir/Support/Fido.ps1.lzma $fido_url/download/Fido.ps1.lzma 2> /dev/null
-   7z e $resdir/Support/Fido.ps1.lzma -o$resdir/Support/ > /dev/null && perl -i -pe's/"en-us"; Id = 0/"en-us"; Id = 1/' $resdir/Support/Fido.ps1
+   7z e $resdir/Support/Fido.ps1.lzma -o$resdir/Support/ > /dev/null
+   perl -i -pe's/\$version = 0.0/\$version = 10.0/' $resdir/Support/Fido.ps1 # Return the equivalent of Windows 10 by default.
+   perl -i -pe's/"en-us"; Id = 0/"en-us"; Id = 1/' $resdir/Support/Fido.ps1  # Set language Id to one for UEFI Shell downloads.
+   perl -i -pe's/Start-BitsTransfer -Source \$Url -Destination/Invoke-WebRequest -UseBasicParsing -Uri \$Url -OutFile/' $resdir/Support/Fido.ps1 # Use Invoke-WebRequest for ISO downloads since BITS is not available on Unix.
 fi
 # Check if PowerShell is supported and run script.
 version=$(pwsh -Version | awk '{print $NF}')
+fido_prompt="Please enter your choice (q to Quit): "
 if  [ "$(printf '%s\n' "3.0" "$version" | sort -V | head -n1)" = "3.0" ]; then
     pwsh $resdir/Support/Fido.ps1 -Win List
-    read -p "Please enter your choice (q to Quit): " winver
+    read -p "$fido_prompt" winver
     if [[ "$winver" == "q" ]]; then return; fi
+    fido_title
     pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel List
-    read -p "Please enter your choice (q to Quit): " release
+    read -p "$fido_prompt" release
     if [[ "$release" == "q" ]]; then return; fi
+    fido_title
     pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed List
-    read -p "Please enter your choice (q to Quit): " edition
+    read -p "$fido_prompt" edition
     if [[ "$edition" == "q" ]]; then return; fi
+    fido_title
     pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang List
-    read -p "Please enter your choice (q to Quit): " lang
+    read -p "$fido_prompt" lang
     if [[ "$lang" == "q" ]]; then return; fi
+    fido_title
     pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch List
-    read -p "Please enter your choice (q to Quit): " arch
+    read -p "$fido_prompt" arch
     if [[ "$arch" == "q" ]]; then return; fi
+    fido_title
     cd ~/Downloads
     pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch $arch
     sleep 1

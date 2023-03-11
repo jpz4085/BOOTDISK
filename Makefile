@@ -49,12 +49,12 @@ update:
 	$(RM) $(BINDIR)/bootdisk
 	$(RM) $(RESDIR)/Support/About.txt
 	$(RM) $(RESDIR)/Support/extract_msdos.sh
+	$(RM) $(RESDIR)/Support/Fido.*
 	find $(RESDIR) -type f -name '*disk.sh' -delete
 	install -m 755 bootdisk.sh $(BINDIR)/bootdisk
 	install -m 755 FreeDOS/freedosdisk.sh $(RESDIR)/FreeDOS
 	install -m 755 MS-DOS/msdosdisk.sh $(RESDIR)/MS-DOS
 	install -m 644 Support/About.txt $(RESDIR)/Support
-	install -m 755 Support/modtime.py $(RESDIR)/Support
 	install -m 755 Support/uefishelldisk.sh $(RESDIR)/Support
 	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
 	install -m 755 Windows/windowsdisk.sh $(RESDIR)/Windows
