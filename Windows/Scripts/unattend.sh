@@ -26,9 +26,7 @@ elif [[ $system == "Linux" ]]; then
 fi
 
 if [[ $SetTimeZone == "true" ]]; then
-   DSTActive=$(pwsh -Command "(Get-Date).IsDaylightSavingTime()")
-   if [[ $DSTActive == "True" ]]; then CurrentName="DaylightName"; else CurrentName="StandardName"; fi
-   TimeZoneName=$(pwsh -Command "Get-TimeZone | grep $CurrentName | sed 's/.*: //' | Tee-Object -Variable TimeZoneName")
+   TimeZoneName=$(pwsh -Command "Get-TimeZone | grep StandardName | sed 's/.*: //' | Tee-Object -Variable TimeZoneName")
 fi
 
 printf "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<unattend xmlns=\"urn:schemas-microsoft-com:unattend\">\r\n"
