@@ -1,4 +1,4 @@
-# BOOTDISK v1.4
+# BOOTDISK v1.5
 #
 # Makefile for Darwin and Linux
 #
@@ -50,6 +50,7 @@ update:
 	$(RM) $(RESDIR)/Support/About.txt
 	$(RM) $(RESDIR)/Support/extract_msdos.sh
 	$(RM) $(RESDIR)/Support/Fido.*
+	$(RM) $(RESDIR)/Windows/Scripts/unattend.sh
 	find $(RESDIR) -type f -name '*disk.sh' -delete
 	install -m 755 bootdisk.sh $(BINDIR)/bootdisk
 	install -m 755 FreeDOS/freedosdisk.sh $(RESDIR)/FreeDOS
@@ -58,6 +59,7 @@ update:
 	install -m 755 Support/uefishelldisk.sh $(RESDIR)/Support
 	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
 	install -m 755 Windows/windowsdisk.sh $(RESDIR)/Windows
+	install -m 755 Windows/Scripts/unattend.sh $(RESDIR)/Windows/Scripts
 
 clean:
 ifeq ($(OS),Darwin)
