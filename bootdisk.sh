@@ -153,6 +153,7 @@ done
 
 read -p "Enter label [FREEDOS]: " volname
 if [[ "$volname" == "" ]]; then volname=FREEDOS; fi
+volname=${volname^^}
 n=${#volname}
 while [ $n -gt 11 ]; do
       echo -e "${RED}Label must be eleven characters or less.${NC}"
@@ -192,6 +193,7 @@ done
 
 read -p "Enter label [MSDOS80]: " volname
 if [[ "$volname" == "" ]]; then volname=MSDOS80; fi
+volname=${volname^^}
 n=${#volname}
 while [ $n -gt 11 ]; do
       echo -e "${RED}Label must be eleven characters or less.${NC}"
@@ -325,6 +327,7 @@ if  [[ $wipe == "Y" ]]; then
     done
     read -p "Enter label [UEFI_SHELL]: " volname
     if [[ "$volname" == "" ]]; then volname="UEFI_SHELL"; fi
+    volname=${volname^^}
     n=${#volname}
     while [ $n -gt 11 ]; do
           echo -e "${RED}Label must be eleven characters or less.${NC}"
