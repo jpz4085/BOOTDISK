@@ -439,7 +439,7 @@ unsupported="false"
 bypassnro="false"
 # Check for Windows 11 media and provide options to disable hardware and Microsoft account requirements.
 if [[ $wimtools == "true" ]]; then
-    if  [[ $(wiminfo "$windisk"/sources/install.wim 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
+    if  [[ $(wiminfo "$windisk"/sources/install.* 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
 else
     read -p "Is this a Windows 11 install disk [Y/N]? " eleven
     eleven=${eleven^^}
