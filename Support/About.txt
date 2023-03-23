@@ -8,8 +8,8 @@ This utility consists of a set of BASH scripts that will automatically configure
 GPT or MBR partition schemes and format with FAT16/32, exFAT or NTFS and the required bootstrapping code to
 enable startup on UEFI and BIOS systems. It provides functionality similar to the Rufus USB Tool for Windows.
 
-Available selections:
-=====================
+Main Menu:
+==========
 
 FreeDOS 1.3 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
 
@@ -17,27 +17,25 @@ MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows fr
 These files are not included with BOOTDISK so this option must be enabled from the Tools sub-menu.
 
 Windows – Create bootable Windows media and optionally extract an ISO image to the disk.
-When using exFAT or NTFS format the disk can be made UEFI bootable using UEFI:NTFS which is downloaded
-automatically when launching the main script.
+When using exFAT or NTFS format the disk can be made UEFI bootable using the UEFI:NTFS bootloader.
+When using FAT32 format the script will split the install.wim archive, if larger than four gigabytes,
+provided the wimtools are available. Otherwise a compatibility warning will be displayed.
 
 UEFI Shell - Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
 
------------------------------------------------------------------------------------------------------------
+Tools Menu:
+===========
 
-Tools Menu - Extract MS-DOS 8.0: Provide the path to the diskcopy.dll library from the Windows\SysWOW64
-folder on a working system or the same location in the sources\install.wim archive on install media.
+Extract MS-DOS 8.0: Provide the path to the diskcopy.dll library from the Windows\SysWOW64 folder
+on a working system or the same location in the sources\install.wim archive on install media.
 
-Tools Menu - Download an ISO file using Fido: Download official retail Windows ISOs and UEFI Shell ISOs
-using the same PowerShell script employed by Rufus. Files are saved to the active user's Downloads folder.
+Download an ISO file using Fido: Download official retail Windows ISOs and UEFI Shell ISOs using
+the same PowerShell script employed by Rufus. Files are saved to the active user's Downloads folder.
  
-Tools Menu - Custom Windows installation: Automatically create a local account, configure privacy/data
-collection settings, use the current language and timezone settings, skip wireless network setup, and
-disable automatic BitLocker encryption.
-
-Tools Menu - Custom Windows installation: Disable the mandatory Microsoft account screen and bypass the
+Custom Windows installation: Automatically create a local account, configure privacy/data collection
+settings, use the current language and timezone settings, skip wireless network setup, and disable
+automatic BitLocker encryption. Disable the mandatory Microsoft account screen and bypass the
 hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
-
------------------------------------------------------------------------------------------------------------
 
 Notes:
 ======
