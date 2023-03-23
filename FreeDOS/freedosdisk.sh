@@ -53,8 +53,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	mdutil -d /Volumes/"$label" &> /dev/null
 	rm $mtoolscfg
 	echo "Finished!"
-	echo
-	sleep 2
+	sleep 1
 elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	disk_length=`sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}'`
 	disk_size=`blockdev --getsize64 /dev/$drive`
@@ -94,7 +93,6 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	sleep 1 && gio mount -d /dev/$drive"1"
 	rm $mtoolscfg
 	echo "Finished!"
-	echo
 	sleep 1
 else
 	echo "Unable to access drive:" $drive
