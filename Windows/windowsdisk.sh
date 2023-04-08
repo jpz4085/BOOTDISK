@@ -111,7 +111,11 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     fi
 	fi
 	echo "Mount boot disk..."
-	diskutil mountDisk $drive > /dev/null
+	if  [[ $uefint == "Y" ]]; then
+	    diskutil mountDisk $drive > /dev/null
+	else
+	    diskutil mount $drive's1' > /dev/null
+	fi
 	echo "Disable Spotlight indexing..."
 	mdutil -d /Volumes/"$label" &> /dev/null
 	if [[ "$isofile" == *".iso"* ]]; then
