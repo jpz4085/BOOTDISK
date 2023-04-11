@@ -56,7 +56,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     diskutil eraseDisk "Free Space" %noformat% GPT $drive > /dev/null
 	fi
 	echo "Prepare disk and make bootable (sudo required)..."
-	sudo chmod o+rw /dev/'r'$drive
+	sudo chmod o+rw /dev/'r'$drive && sudo chmod o+rw /dev/$drive
 	disk_length=`diskutil info $drive | grep "Disk Size:" | awk '{print $8}'`
 	if   [[ $uefint == "Y" ]]; then
 	     if   [[ $prtshm == "MBR" ]]; then
