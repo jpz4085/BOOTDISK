@@ -103,6 +103,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	elif [[ $fstyp == "EXFAT" ]]; then
 	     newfs_exfat -v "$label" /dev/'r'$drive's1' > /dev/null
 	     if [[ $pty == "7" ]]; then
+	        sudo chmod o+rw /dev/$drive's1'
 	        if  [[ -e /usr/local/bin/ms-sys || -e /opt/local/bin/ms-sys ]]; then
 	            ms-sys -w /dev/$drive's1' > /dev/null
 	        else
