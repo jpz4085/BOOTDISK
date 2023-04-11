@@ -1,0 +1,53 @@
+#!/usr/bin/swift
+import Foundation
+import IOKit
+import Security
+
+func usage() -> Never {
+        print("usage:")
+        print("\tsignmbr FILE")
+        exit(1)
+}
+
+if CommandLine.arguments.count == 1 {
+        print("signmbr:")
+        print("\twrites 4 random bytes to FILE at offset 440 (0x1B8)")
+        usage()
+}
+
+guard CommandLine.arguments.count == 2 else {
+        usage()
+}
+
+let device = CommandLine.arguments[1]
+
+guard FileManager.default.fileExists(atPath: device) else {
+        print("file not found: \(device)")
+        exit(1)
+}
+
+/* generate signature */
+
+var signature = Data.init(count: 4)
+
+let error = signature.withUnsafeMutableBytes({
+        return SecRandomCopyBytes(kSecRandomDefault, 4, UnsafeMutableRawPointer.init(mutating: $0.baseAddress!))
+})
+
+if error != errSecSuccess {
+        print("error")
+        exit(1)
+}
+
+/* write signature and exit */
+
+guard let fileHandle = FileHandle(forWritingAtPath: device) else {
+        print("error: couldn't open file for writing")
+        exit(1)
+}
+
+fileHandle.seek(toFileOffset: 0x1B8)
+fileHandle.write(signature)
+fileHandle.closeFile()
+
+print(String(describing: signature as NSData))

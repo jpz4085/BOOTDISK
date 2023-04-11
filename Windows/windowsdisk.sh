@@ -62,6 +62,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     if   [[ $prtshm == "MBR" ]]; then
 	          printf 'e 1\n'$pty'\n\n2048\n'$(($disk_length - 4096))'\nf 1\ne 2\n1\n\n\n\nq\n' | \
 	          fdisk -u -f Sectors/mswinmbr.bin -y -e /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	          Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
 	          if  [[ -e /usr/local/bin/sgdisk ]]; then
 	              sgdisk -o /dev/'r'$drive > /dev/null 2>&1
@@ -81,6 +82,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     if   [[ $prtshm == "MBR" ]]; then
 	          printf 'e 1\n'$pty'\n\n2048\n\nf 1\nq\n' | \
 	          fdisk -u -f Sectors/mswinmbr.bin -y -e /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	          Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
 	          if  [[ -e /usr/local/bin/sgdisk ]]; then
 	              sgdisk -o /dev/'r'$drive > /dev/null 2>&1
