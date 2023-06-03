@@ -110,16 +110,18 @@ title_block
 cat<<EOF
 Extract MS-DOS 8.0          (1)
 Download an ISO file        (2)
-Custom Windows installation (3)
-Return to Main Menu         (4)
+Verify Windows ISO checksum (3)
+Custom Windows installation (4)
+Return to Main Menu         (5)
 EOF
 lower_border
 read -p"Enter Choice: "
 case "$REPLY" in
 "1")  extractdos  ;;
 "2")  fido_script ;;
-"3")  customize   ;;
-"4")  break       ;;
+"3")  checksum    ;;
+"4")  customize   ;;
+"5")  break       ;;
  * )  select_err  ;;
 esac
 done
@@ -406,6 +408,18 @@ else
     echo
     read -n 1 -s -r -p "Press any key to continue"
 fi
+}
+
+checksum () {
+clear
+echo "     Verify SHA-1 checksum of an ISO file     "
+echo "----------------------------------------------"
+read -p "Enter path to Windows ISO file: " file
+echo "Calculating checksum..."
+isosum=$(shasum "$file" | awk '{print $1}')
+echo "Searching on adguard.net..."
+python3 -m webbrowser "https://sha1.rg-adguard.net/search.php?sha1=$isosum"
+read -p "Press any key to continue... " -n1 -s
 }
 
 extractdos () {
