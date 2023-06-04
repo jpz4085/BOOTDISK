@@ -17,6 +17,8 @@ Features
 
 - Download official retail Windows ISOs and UEFI Shell ISOs using the [Fido](https://github.com/pbatard/Fido) script. Requires [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.3) 3.0 or greater.
 
+- Calculate the SHA-1 checksum for Windows ISO files and search for that value in the [sha1.rg-adguard.net](https://sha1.rg-adguard.net) databases.
+
 - Customize the Windows installation process to automatically create a local account, configure privacy settings, select language and timezone settings, skip wireless network setup and disable automatic BitLocker encryption.
 
 - Customize Windows 11 installation media for unsupported hardware (disable TPM, Secure Boot and RAM requirements).

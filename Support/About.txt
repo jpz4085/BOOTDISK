@@ -31,6 +31,9 @@ on a working system or the same location in the sources\install.wim archive on i
 
 Download an ISO file using Fido: Download official retail Windows ISOs and UEFI Shell ISOs using
 the same PowerShell script employed by Rufus. Files are saved to the active user's Downloads folder.
+
+Verify a Windows ISO checksum: Calculate the SHA-1 value for a Windows DVD image and search for it in
+the sha1.rg-adguard.net databases. A match confirms you have an original and unmodified Microsoft ISO.
  
 Custom Windows installation: Automatically create a local account, configure privacy/data collection
 settings, use the current language and timezone settings, skip wireless network setup, and disable
