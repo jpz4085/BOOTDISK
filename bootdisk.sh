@@ -7,7 +7,7 @@
 title_block () {
 cat<<EOF
 ===========================
-    ---BOOTDISK v1.5---
+   ---BOOTDISK v1.5.1---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
