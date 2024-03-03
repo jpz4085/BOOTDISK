@@ -373,7 +373,8 @@ if [[ ! -e $resdir/Support/Fido.ps1 || "$(grep "# Fido v" $resdir/Support/Fido.p
    7z e $resdir/Support/Fido.ps1.lzma -o$resdir/Support/ > /dev/null
    perl -i -pe's/\$version = 0.0/\$version = 10.0/' $resdir/Support/Fido.ps1 # Return the equivalent of Windows 10 by default.
    perl -i -pe's/"en-us"; Id = 0/"en-us"; Id = 1/' $resdir/Support/Fido.ps1  # Set language Id to one for UEFI Shell downloads.
-   perl -i -pe's/Start-BitsTransfer -Source \$Url -Destination/Invoke-WebRequest -UseBasicParsing -Uri \$Url -OutFile/' $resdir/Support/Fido.ps1 # Use Invoke-WebRequest for ISO downloads since BITS is not available on Unix.
+   perl -i -pe's/curl/Invoke-WebRequest/' $resdir/Support/Fido.ps1 # Switch back to Invoke-WebRequest for Unix compatibility.
+   perl -i -pe's/Start-BitsTransfer -Source \$Url -Destination/Invoke-WebRequest -UseBasicParsing -TimeoutSec \$DefaultTimeout -Uri \$Url -OutFile/' $resdir/Support/Fido.ps1 # Use Invoke-WebRequest for ISO downloads since BITS is not available on Unix.
 fi
 # Check if PowerShell is supported and run script.
 version=$(pwsh -Version | awk '{print $NF}')
