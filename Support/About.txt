@@ -51,12 +51,12 @@ Requirements:
 
 Common packages: p7zip, mtools, chntpw, powershell, and jq (JSON processor).
 
-Linux packages: curl, ms-sys, exfat-fuse, exfa-progs, ntfs-3g and wimtools.
+Linux packages: curl, ms-sys, exfat-fuse, exfat-progs, ntfs-3g and wimtools.
 Note that if ms-sys is omitted the tool will create UEFI bootable media only.
 Also your account should be a member of the "disk" group to allow unprivileged device access.
 Sudo is only used where mandatory.
 
-macOS packages: bash (above version 3.2) and wimlib.
+macOS packages: bash (above version 3.2), wimlib and NTFS write support.
 These can be installed using the MacPorts or Homebrew package managers.
-Additionally ms-sys can be used for legacy EXFAT booting and sgdisk for GPT partitioning.
-Note that NTFS is not supported at this time.
+Optionally ms-sys can be used for legacy EXFAT and NTFS booting and sgdisk for GPT partitioning.
+Note that NTFS is supported when using the Tuxera or Paragon products.

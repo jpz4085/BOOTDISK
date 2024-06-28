@@ -43,6 +43,7 @@ See [chntpw](https://github.com/jpz4085/chntpw) for macOS.
 **Linux packages:** curl, ms-sys, exfat-fuse, exfatprogs, ntfs-3g and wimtools.  
 User should be member of "disk" group for unprivileged device access. 
 
-**macOS packages:** bash (above version 3.2) and wimlib.  
+**macOS packages:** bash (above version 3.2), wimlib and NTFS write support.  
 These can be downloaded using MacPorts or Homebrew.  
-Optionally ms-sys and sgdisk are supported if present.
+Optionally ms-sys and sgdisk are supported if present.  
+The Tuxera and Paragon NTFS products are supported.

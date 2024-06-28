@@ -106,11 +106,29 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     newfs_exfat -v "$label" /dev/'r'$drive's1' > /dev/null
 	     if [[ $pty == "7" ]]; then
 	        sudo chmod o+rw /dev/$drive's1'
-	        if  [[ -e /usr/local/bin/ms-sys || -e /opt/local/bin/ms-sys ]]; then
+	        if  [[ ! -z $(command -v ms-sys) ]]; then
 	            ms-sys -w /dev/$drive's1' > /dev/null
 	        else
 	            exfatboot -B Sectors/BOOTMGR/exfatpbr.bin /dev/$drive's1' > /dev/null
 	        fi
+	     fi
+	elif [[ $fstyp == "NTFS" ]]; then
+	     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
+	     if   [[ $personality == "Tuxera" ]]; then
+	          sudo /usr/local/sbin/newfs_tuxera_ntfs -v "$label" /dev/$drive's1' > /dev/null
+	          if [[ $pty == "7" ]]; then
+	             sudo chmod o+rw /dev/$drive's1'
+	             if  [[ ! -z $(command -v ms-sys) ]]; then
+	                 ms-sys -n /dev/$drive's1' > /dev/null
+	             else
+	                 dd if=Sectors/BOOTMGR/ntfspbr.bin of=/dev/$drive's1' bs=1 skip=84 seek=84 count=426 2> /dev/null
+	                 dd if=Sectors/BOOTMGR/ntfsipl.bin of=/dev/$drive's1' seek=1 count=9 2> /dev/null
+	             fi
+	          fi
+	     elif [[ $personality == "UFSD_NTFS" ]]; then
+	          ufsd_path="/Library/Filesystems/ufsd_NTFS.fs/Contents/Resources"
+	          sudo $ufsd_path/mkntfs -win7 -f -v:"$label" /dev/$drive's1' > /dev/null
+	          echo "1C: 00080000" | sudo xxd -g 0 -r - /dev/$drive's1' #Set start sector to 2048.
 	     fi
 	fi
 	echo "Mount boot disk..."

@@ -7,7 +7,7 @@
 title_block () {
 cat<<EOF
 ===========================
-   ---BOOTDISK v1.5.1---
+   ---BOOTDISK v1.5.2---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -233,14 +233,25 @@ while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
       prtshm=${prtshm^^}
 done
 
-if [[ "$system" == "Darwin" ]]; then
-    read -p "Enter file system [FAT32/EXFAT]: " fstyp
-    fstyp=${fstyp^^}
-    while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" ]]; do
-        echo -e "${RED}Invalid file system type. Try again.${NC}"
-        read -p "Enter file system [FAT32/EXFAT]: " fstyp
-        fstyp=${fstyp^^}
-    done
+if   [[ "$system" == "Darwin" ]]; then
+     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
+     if  [[ $personality == "Tuxera" || $personality == "UFSD_NTFS" ]]; then
+         read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
+         fstyp=${fstyp^^}
+         while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" && $fstyp != "NTFS" ]]; do
+               echo -e "${RED}Invalid file system type. Try again.${NC}"
+               read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
+               fstyp=${fstyp^^}
+         done
+     else
+         read -p "Enter file system [FAT32/EXFAT]: " fstyp
+         fstyp=${fstyp^^}
+         while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" ]]; do
+               echo -e "${RED}Invalid file system type. Try again.${NC}"
+               read -p "Enter file system [FAT32/EXFAT]: " fstyp
+               fstyp=${fstyp^^}
+         done
+     fi
 elif [[ "$system" == "Linux" ]]; then
     read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
     fstyp=${fstyp^^}
