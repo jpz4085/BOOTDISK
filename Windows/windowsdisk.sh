@@ -107,7 +107,7 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     if [[ $pty == "7" ]]; then
 	        sudo chmod o+rw /dev/$drive's1'
 	        if  [[ ! -z $(command -v ms-sys) ]]; then
-	            ms-sys -w /dev/$drive's1' > /dev/null
+	            ms-sys -x /dev/$drive's1' > /dev/null
 	        else
 	            exfatboot -B Sectors/BOOTMGR/exfatpbr.bin /dev/$drive's1' > /dev/null
 	        fi
@@ -116,6 +116,8 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
 	     if   [[ $personality == "Tuxera" ]]; then
 	          sudo /usr/local/sbin/newfs_tuxera_ntfs -v "$label" /dev/$drive's1' > /dev/null
+	          echo "18: 3F00" | sudo xxd -g 0 -r - /dev/$drive's1' #Set sectors per track to 63.
+	          echo "1A: FF00" | sudo xxd -g 0 -r - /dev/$drive's1' #Set number of heads to 255.
 	          if [[ $pty == "7" ]]; then
 	             sudo chmod o+rw /dev/$drive's1'
 	             if  [[ ! -z $(command -v ms-sys) ]]; then
