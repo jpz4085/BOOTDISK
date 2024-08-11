@@ -7,7 +7,7 @@
 title_block () {
 cat<<EOF
 ===========================
-   ---BOOTDISK v1.5.2---
+   ---BOOTDISK v1.6---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -40,7 +40,7 @@ read -p"Enter Choice: "
 case "$REPLY" in
 "1")  fdosdisk    ;;
 "2")  msdosdisk   ;;
-"3")  windowsdisk ;;
+"3")  windowsmode ;;
 "4")  uefi_shell  ;;
 "5")  menu_tools  ;;
 "6")  show_about  ;;
@@ -67,7 +67,7 @@ lower_border
 read -p"Enter Choice: "
 case "$REPLY" in
 "1")  fdosdisk    ;;
-"2")  windowsdisk ;;
+"2")  windowsmode ;;
 "3")  uefi_shell  ;;
 "4")  menu_tools  ;;
 "5")  show_about  ;;
@@ -92,7 +92,7 @@ EOF
 lower_border
 read -p"Enter Choice: "
 case "$REPLY" in
-"1")  windowsdisk ;;
+"1")  windowsmode ;;
 "2")  uefi_shell  ;;
 "3")  menu_tools  ;;
 "4")  show_about  ;;
@@ -207,6 +207,45 @@ echo
 (cd $resdir/MS-DOS; ./msdosdisk.sh $system $fstyp "$volname" $tgtdsk)
 }
 
+windowsmode () {
+wtgsupport="false"
+if   [[ "$system" == "Darwin" ]]; then
+     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
+     if  [[ $personality == "Tuxera" || $personality == "UFSD_NTFS" ||
+         (! -z $(command -v mkntfs) && ! -z $(command -v ntfs-3g)) ]]; then
+         if [[ $wimtools == "true" && ! -z $(command -v bcd-sys) ]]; then
+            wtgsupport="true"
+         fi
+     fi
+elif [[ "$system" == "Linux" ]]; then
+     if [[ ! -z $(command -v mkntfs) && ! -z $(command -v ntfs-3g) ]]; then
+        if [[ $wimtools == "true" && ! -z $(command -v bcd-sys) ]]; then
+           wtgsupport="true"
+        fi
+     fi
+fi
+if   [[ $wtgsupport == "true" ]]; then
+     while :
+     do
+     clear
+     title_block
+     echo "Create install media    (1)"
+     echo "Create Windows to Go    (2)"
+     echo "Return to Main Menu     (3)"
+     lower_border
+     read -p"Enter Choice: "
+     case "$REPLY" in
+     "1")  windowsdisk ;;
+     "2")  windowstogo ;;
+     "3")  break       ;;
+      * )  select_err  ;;
+     esac
+     done
+else
+     windowsdisk
+fi
+}
+
 windowsdisk () {
 clear
 echo "     Windows Boot Disk Script      "
@@ -234,7 +273,6 @@ while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
 done
 
 if   [[ "$system" == "Darwin" ]]; then
-     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
      if  [[ $personality == "Tuxera" || $personality == "UFSD_NTFS" ]]; then
          read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
          fstyp=${fstyp^^}
@@ -296,6 +334,83 @@ if [[ "$image" == "" ]]; then image=NONE; fi
 
 echo
 (cd $resdir/Windows; ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $wimtools $tgtdsk)
+}
+
+wtgtitle () {
+clear
+echo "      Windows to Go Script      "
+echo "--------------------------------"
+}
+
+windowstogo () {
+wtgtitle
+if [[ "$system" == "Darwin" ]]; then
+   read -p "Enter target disk [disk#]: " tgtdsk
+   while [[ $tgtdsk != *"disk"* ]]; do
+         echo -e "${RED}Invalid disk name. Try again.${NC}"
+         read -p "Enter target disk [disk#]: " tgtdsk
+   done
+elif [[ "$system" == "Linux" ]]; then
+     read -p "Enter target disk [sd*]: " tgtdsk
+     while [[ $tgtdsk != *"sd"* ]]; do
+           echo -e "${RED}Invalid disk name. Try again.${NC}"
+           read -p "Enter target disk [sd*]: " tgtdsk
+     done
+fi
+read -p "Enter path to ISO file: " image
+while [[ ! -f "$image" || "$image" != *.iso ]]; do
+      echo -e "${RED}Invalid file. Please try again.${NC}"
+      read -p "Enter path to ISO file: " image
+done
+echo "Mount install disk image..."
+if   [[ "$system" == "Darwin" ]]; then
+     wimfile="/tmp/isomount/sources/install.wim"
+     hdiutil attach "$image" -mountpoint /tmp/isomount -nobrowse > /dev/null
+elif [[ "$system" == "Linux" ]]; then
+     wimfile="/mnt/isomount/sources/install.wim"
+     if [[ ! -f $wimfile ]]; then
+        sudo mkdir -p /mnt/isomount
+        sudo mount -o loop "$image" /mnt/isomount
+     fi
+fi
+if [[ ! -f $wimfile ]]; then
+   echo -e "${RED}Unable to find install archive in DVD image.${NC}"
+   echo
+   read -p "Press any key to continue... " -n1 -s
+   return 1
+fi
+
+wtgtitle
+idxnum=$(wiminfo $wimfile | grep -E '^(Index:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g;s/[0-9]$/&\./g')
+prodname=$(wiminfo $wimfile | grep -E '^(Name:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g')
+echo "Windows products on $(basename "$image")"
+paste <(printf %s "$idxnum") <(printf %s "$prodname")
+read -p "Enter Choice (q to Quit): " index
+while [[ $idxnum != *$index* && $index != "q" ]]; do
+      echo -e "${RED}Invalid entry. Please try again.${NC}"
+      read -p "Enter Choice: " index
+done
+
+if [[ "$index" != "q" ]]; then
+   echo
+   (cd $resdir/Windows; ./windowstogo.sh $system $wimfile $index $tgtdsk)
+fi
+
+if [[ ! $? -eq 0 ]]; then wtgerror="true"; else wtgerror="false"; fi
+rm -f /tmp/wimfile_errors.txt
+echo "Unmount install disk image..."
+if   [[ "$system" == "Darwin" ]]; then
+     hdiutil detach /tmp/isomount > /dev/null
+elif [[ "$system" == "Linux" ]]; then
+     sudo umount /mnt/isomount && sudo rm -d /mnt/isomount
+fi
+if  [[ $wtgerror == "true" ]]; then
+    echo
+    read -p "Press any key to continue... " -n1 -s
+else
+    echo "Finished!"
+    sleep 2
+fi
 }
 
 uefi_shell () {
@@ -445,12 +560,12 @@ echo
 
 customize () {
 clear
-echo "    Customize Windows Installation Media    "
-echo "--------------------------------------------"
+echo "    Customize your Windows Installation    "
+echo "-------------------------------------------"
 if   [[ "$system" == "Darwin" ]]; then
-     read -p "Enter path to install disk [/Volumes/Untitled]: " windisk
+     read -p "Enter path to Windows disk [/Volumes/Windows]: " windisk
 elif [[ "$system" == "Linux" ]]; then
-     read -p "Enter path to install disk [/media/user/USBDISK]: " windisk
+     read -p "Enter path to Windows disk [/media/$USER/Windows]: " windisk
 fi
    
 if [[ ! -d $windisk ]]; then
@@ -461,17 +576,38 @@ if [[ ! -d $windisk ]]; then
    return 1
 fi
 
+if   [[ -f "$windisk/sources/boot.wim" ]]; then
+     winmedia="install"
+elif [[ -f "$windisk/Windows/Boot/EFI/bootmgfw.efi" ]]; then
+     winmedia="wintogo"
+else
+     echo
+     echo "Unable to locate the Windows files."
+     echo
+     read -p "Press any key to continue... " -n1 -s
+     return 1
+fi
+
 unsupported="false"
 bypassnro="false"
 # Check for Windows 11 media and provide options to disable hardware and Microsoft account requirements.
-if [[ $wimtools == "true" ]]; then
-    if  [[ $(wiminfo "$windisk"/sources/install.* 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
+if   [[ $winmedia == "install" && $wimtools == "true" ]]; then
+     if [[ $(wiminfo "$windisk"/sources/install.* 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
+elif [[ $winmedia == "wintogo" && ! -z $(command -v hivexsh) ]]; then
+     bcdpath="/Volumes/UFD-SYSTEM/EFI/Microsoft/Boot/BCD"
+     if [[ -f "$bcdpath" ]]; then
+        guidscript="cd Objects\\{9dea862c-5cdd-4e70-acc1-f32b344d4795}\\\Elements\\\23000003\nlsval Element\nunload\n"
+        winguid=$(printf "$guidscript" | hivexsh "$bcdpath")
+        namescript="cd Objects\\$winguid\\\Elements\\\12000004\nlsval Element\nunload\n"
+        winprod=$(printf "$namescript" | hivexsh "$bcdpath")
+        if [[ "$winprod" == "Windows 11" ]]; then win11opts; fi
+     fi
 else
-    read -p "Is this a Windows 11 install disk [Y/N]? " eleven
+    read -p "Is this a Windows 11 disk [Y/N]? " eleven
     eleven=${eleven^^}
     while [[ $eleven != "Y" && $eleven != "N" ]]; do
           echo -e "${RED}Invalid entry. Try again.${NC}"
-          read -p "Is this a Windows 11 install disk [Y/N]? " eleven
+          read -p "Is this a Windows 11 disk [Y/N]? " eleven
           eleven=${eleven^^}
     done
     if  [[ $eleven == "Y" ]]; then win11opts; fi
@@ -557,30 +693,37 @@ while [[ $bitlocker != "Y" && $bitlocker != "N" ]]; do
 done
 if  [[ $bitlocker == "Y" ]]; then disautoenc="true"; fi
 
-if  [[ $unsupported == "false" && $localize == "false" ]]; then
-    mkdir -p "$windisk/sources/\$OEM\$/\$\$/Panther"
-    xmlpath="$windisk/sources/\$OEM\$/\$\$/Panther/unattend.xml"
-else
-    xmlpath="$windisk/autounattend.xml"
+if   [[ $winmedia == "install" ]]; then
+     if  [[ $unsupported == "false" && $localize == "false" ]]; then
+         mkdir -p "$windisk/sources/\$OEM\$/\$\$/Panther"
+         xmlpath="$windisk/sources/\$OEM\$/\$\$/Panther/unattend.xml"
+     else
+         xmlpath="$windisk/autounattend.xml"
+     fi
+elif [[ $winmedia == "wintogo" ]]; then
+     mkdir "$windisk/Windows/Panther"
+     xmlpath="$windisk/Windows/Panther/unattend.xml"
 fi
 
 (cd $resdir/Windows/Scripts; ./unattend.sh $unsupported $localize $bypassnro $oobe $settimezone $useraccounts $skipwifisetup $disdatacol $disautoenc "$loginname" "$fullname" "$description" > "$xmlpath")
 }
 
 win11opts () {
-read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
-bypasshw=${bypasshw^^}
-while [[ $bypasshw != "Y" && $bypasshw != "N" ]]; do
-      echo -e "${RED}Invalid entry. Try again.${NC}"
-      read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
-      bypasshw=${bypasshw^^}
-done
-if  [[ $bypasshw == "Y" ]]; then
-    if  [[ $wimtools == "true" && $(command -v reged) != "" ]]; then
-        (cd $resdir/Windows/Scripts; ./unsupported.sh "$windisk")
-    else
-        unsupported="true"
-    fi
+if [[ $winmedia == "install" ]]; then
+   read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
+   bypasshw=${bypasshw^^}
+   while [[ $bypasshw != "Y" && $bypasshw != "N" ]]; do
+         echo -e "${RED}Invalid entry. Try again.${NC}"
+         read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
+         bypasshw=${bypasshw^^}
+   done
+   if  [[ $bypasshw == "Y" ]]; then
+       if  [[ $wimtools == "true" && ! -z $(command -v hivexregedit) ]]; then
+           (cd $resdir/Windows/Scripts; ./unsupported.sh "$windisk")
+       else
+           unsupported="true"
+       fi
+   fi
 fi
 read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
 msaccount=${msaccount^^}
@@ -625,20 +768,25 @@ if [[ $(command -v jq) == "" ]]; then missing+=" jq"; fi
 if [[ $(command -v curl) == "" ]]; then missing+=" curl"; fi
 if [[ $system == "Linux" && $(command -v mkntfs) == "" ]]; then missing+=" ntfs-3g"; fi
 if [[ $system == "Linux" && $(command -v mkfs.exfat) == "" ]]; then missing+=" exfatprogs"; fi
-if [[ $system == "Linux" && $(command -v mount.exfat-fuse) == "" ]]; then missing+=" exfat-fuse"; fi
 if [[ $system == "Darwin" ]]; then
    bashver=$(bash --version | head -n 1 | awk '{print $4}' | cut -f1 -d'(')
    if  [ "$(printf '%s\n' "3.2.57" "$bashver" | sort -rV | head -n1)" == "3.2.57" ]; then
        missing+=" bash(>$bashver)"
    fi
 fi
-if [[ $system == "Darwin" ]] || [[ $system == "Linux" && -e /usr/local/bin/ms-sys ]]; then
+if [[ $system == "Darwin" ]] || [[ $system == "Linux" && ! -z $(command -v ms-sys) ]]; then
    if [[ $(command -v mtools) == "" ]]; then
       missing+=" mtools"
    fi
 fi
 if [[ "$missing" != "" ]]; then
    echo "The following packages are required:""$missing"
+   exit 1
+fi
+
+# Check if user is member of disk group under Linux.
+if [[ $system == "Linux" && -z $(id | grep -o '(disk)') ]]; then
+   echo "Please add $USER to the disk group."
    exit 1
 fi
 
@@ -661,7 +809,7 @@ else
 fi
 
 # Display menu for available options.
-if [[ $system == "Darwin" ]] || [[ $system == "Linux" && -e /usr/local/bin/ms-sys ]]; then
+if [[ $system == "Darwin" ]] || [[ $system == "Linux" && ! -z $(command -v ms-sys) ]]; then
    if [[ -e $resdir/MS-DOS/Files/COMMAND.COM ]]; then
 	menu_all
    else

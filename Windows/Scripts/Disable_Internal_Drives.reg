@@ -1,0 +1,5 @@
+Windows Registry Editor Version 5.00
+
+[SYSTEM\ControlSet001\Services\partmgr\Parameters]
+"SanPolicy"=dword:00000004
+
