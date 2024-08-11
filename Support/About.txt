@@ -11,15 +11,16 @@ enable startup on UEFI and BIOS systems. It provides functionality similar to th
 Main Menu:
 ==========
 
-FreeDOS 1.3 – Create a boot disk containing a basic set of utilities like FDISk,FORMAT,SYS,EDIT,etc.
+FreeDOS 1.3 – Create a boot disk containing a basic set of utilities like FDISK,FORMAT,SYS,EDIT,etc.
 
 MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows from XP to 8.1.
 These files are not included with BOOTDISK so this option must be enabled from the Tools sub-menu.
 
 Windows – Create bootable Windows media and optionally extract an ISO image to the disk.
+Create bootable Windows to Go media from an ISO image using the wimtools and bcd-sys scripts.
 When using exFAT or NTFS format the disk can be made UEFI bootable using the UEFI:NTFS bootloader.
-When using FAT32 format the script will split the install.wim archive, if larger than four gigabytes,
-provided the wimtools are available. Otherwise a compatibility warning will be displayed.
+When using FAT32 format the script will split the install.wim archive when necessary provided the
+wimtools are available. Otherwise a file system compatibility warning will be displayed.
 
 UEFI Shell - Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
 
@@ -40,23 +41,33 @@ settings, use the current language and timezone settings, skip wireless network 
 automatic BitLocker encryption. Disable the mandatory Microsoft account screen and bypass the
 hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
 
-Notes:
-======
+Troubleshooting:
+================
 
-When entering file and folder paths at the prompts they should not contain any quotes so copy and
-paste the file into terminal but don't drag and drop. This will avoid invalid path errors.
+When entering file and folder paths at the prompts they should not contain any quotes so just paste
+the file, folder or path into terminal but don't drag and drop. This will avoid invalid path errors.
+
+The main script will warn if critical dependencies are absent but not optional components. Review
+the list of requirements below and install anything needed to provide missing functionality.
+
+When creating Windows to Go media under Linux the terminal may suddenly be killed by the userspace out
+of memory killer (systemd-oomd) as indicated in the logs. This happens most frequently under the GNOME
+desktop environment. This will require increasing the Memory Pressure Limit to 80% and increasing the
+Memory Pressure Duration to one minute if the default values are lower on the systemd-oomd service and
+the systemd user environment service (user@service). The vendor defaults can be overridden with drop-
+in configuration files as indicated in the repository Notes file and Linux documentation.
 
 Requirements:
 =============
 
-Common packages: p7zip, mtools, chntpw, powershell, and jq (JSON processor).
+Common packages: p7zip, mtools, hivex, bcd-sys, powershell and jq (JSON processor).
 
-Linux packages: curl, ms-sys, exfat-fuse, exfat-progs, ntfs-3g and wimtools.
+Linux packages: curl, ms-sys, exfat-progs, ntfs-3g and wimtools.
 Note that if ms-sys is omitted the tool will create UEFI bootable media only.
 Also your account should be a member of the "disk" group to allow unprivileged device access.
 Sudo is only used where mandatory.
 
 macOS packages: bash (above version 3.2), wimlib and NTFS write support.
 These can be installed using the MacPorts or Homebrew package managers.
-Optionally ms-sys can be used for legacy EXFAT and NTFS booting and sgdisk for GPT partitioning.
-Note that NTFS is supported when using the Tuxera or Paragon products.
+Optional components include ms-sys for legacy EXFAT and NTFS booting and sgdisk for GPT partitioning.
+NTFS install media requires the Tuxera or Paragon products while Windows to Go supports NTFS-3G.
