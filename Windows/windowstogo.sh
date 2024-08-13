@@ -37,8 +37,8 @@ if    [[ -e /dev/$drive && $system == "Darwin" ]]; then
       printf 'e 1\nc\n\n2048\n716800\nf 1\ne 2\n7\n\n\n\nq\n' | \
       sudo fdisk -u -f Sectors/mswinmbr.bin -y -e /dev/$drive > /dev/null && $ignore_btn &> /dev/null
       sudo Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-      sudo newfs_msdos -B Sectors/fat32pbr.bin -F 32 -v "UFD-SYSTEM" /dev/'r'$drive's1' > /dev/null
-      sudo dd if=Sectors/fat32ebs.bin of=/dev/'r'$drive's1' bs=512 seek=12 count=1 2> /dev/null
+      sudo newfs_msdos -B Sectors/BOOTMGR/fat32pbr.bin -F 32 -v "UFD-SYSTEM" /dev/'r'$drive's1' > /dev/null
+      sudo dd if=Sectors/BOOTMGR/fat32ebs.bin of=/dev/'r'$drive's1' bs=512 seek=12 count=1 2> /dev/null
       personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
       if   [[ $personality == "Tuxera" ]]; then
            sudo /usr/local/sbin/newfs_tuxera_ntfs -v "UFD-Windows" /dev/$drive's2' > /dev/null
