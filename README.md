@@ -9,7 +9,7 @@ Features
 
 - Create a MS-DOS boot disk using the version included with Windows from XP to 8.1. (Enable from Tools Menu)
 
-- Create bootable Windows media and extract an ISO image to the disk.
+- Create bootable Windows install media and [Windows To Go](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/deployment/windows-to-go/windows-to-go-overview) media from an ISO image.[^1]
 
 - Create UEFI bootable exFAT or NTFS disks using the [UEFI:NTFS](https://github.com/pbatard/uefi-ntfs) bootloader downloaded by the main script.
 
@@ -34,16 +34,18 @@ sudo make update
 sudo make uninstall
 ```
 
-Requirements
+Requirements[^2]
 ------------
-**Common packages:** p7zip, mtools, chntpw, powershell, and jq (JSON processor).  
+**Common packages:** p7zip, mtools, hivex, [bcd-sys](https://github.com/jpz4085/BCD-SYS), powershell, and jq (JSON processor).  
 Install these in addition to the packages for your platform.
-See [chntpw](https://github.com/jpz4085/chntpw) for macOS.
 
-**Linux packages:** curl, ms-sys, exfat-fuse, exfatprogs, ntfs-3g and wimtools.  
+**Linux packages:** curl, ms-sys, exfatprogs, ntfs-3g and wimtools.  
 User should be member of "disk" group for unprivileged device access. 
 
 **macOS packages:** bash (above version 3.2), wimlib and NTFS write support.  
 These can be downloaded using MacPorts or Homebrew.  
 Optionally ms-sys and sgdisk are supported if present.  
 The Tuxera and Paragon NTFS products are supported.
+
+[^1]: See the Troubleshooting section of [NOTES](https://github.com/jpz4085/BOOTDISK/blob/main/Support/NOTES.md) for help if the terminal is forced closed due to a memory issue.
+[^2]: The main script will only warn of missing dependencies needed for UEFI systems. Please review the requirements above and install anything else necessary to provide missing functionality for your platform.
