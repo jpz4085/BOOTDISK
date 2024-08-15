@@ -25,7 +25,9 @@ install:
 	install -d $(RESDIR)/Support
 	install -m 755 bootdisk.sh $(BINDIR)/bootdisk
 ifeq ($(OS),Darwin)
+        ifneq (,$(wildcard Support/exfatboot))
 	install -m 755 Support/exfatboot $(BINDIR)
+        endif
 	install -m 755 Support/click_ignore.scpt $(RESDIR)/Support
 endif
 	install -m 755 Support/extract_msdos.sh $(RESDIR)/Support
@@ -41,7 +43,9 @@ endif
 uninstall:
 	$(RM) $(BINDIR)/bootdisk
 ifeq ($(OS),Darwin)
+        ifneq (,$(wildcard $(BINDIR)/exfatboot))
 	$(RM) $(BINDIR)/exfatboot
+        endif
 endif
 	$(RM) -r $(RESDIR)
 
