@@ -25,16 +25,23 @@ Features
 
 - Additional information on the features above is available by selecting the About option.
 
-Install/Update/Uninstall
+Installation
 ------------------------
+Build exfatboot utility for macOS.[^2]
 ```
-make (build exfatboot, macOS only)
+make
+```
+Install or uninstall as desired.
+```
 sudo make install
-sudo make update
 sudo make uninstall
 ```
+Update an existing installation.
+```
+sudo make update
+```
 
-Requirements[^2]
+Requirements[^3]
 ------------
 **Common packages:** p7zip, mtools, hivex, [bcd-sys](https://github.com/jpz4085/BCD-SYS), powershell, and jq (JSON processor).  
 Install these in addition to the packages for your platform.
@@ -48,4 +55,7 @@ Optionally ms-sys and sgdisk are supported if present.
 The Tuxera and Paragon NTFS products are supported.
 
 [^1]: See the Troubleshooting section of [NOTES](https://github.com/jpz4085/BOOTDISK/blob/main/Support/NOTES.md) for help if the terminal is forced closed due to a memory issue.
-[^2]: The main script will only warn of missing dependencies needed for UEFI systems. Please review the requirements above and install anything else necessary to provide missing functionality for your platform.
+
+[^2]: This is not required when ms-sys is present.
+
+[^3]: The main script will warn of missing dependencies required for basic functionality. Review the requirements for your platform and install anything needed to provide missing features.
