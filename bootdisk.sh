@@ -20,7 +20,7 @@
 title_block () {
 cat<<EOF
 ===========================
-   ---BOOTDISK v1.6---
+   ---BOOTDISK v1.6.1---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -513,7 +513,19 @@ if [[ ! -e $resdir/Support/Fido.ps1 || "$(grep "# Fido v" $resdir/Support/Fido.p
    perl -i -pe's/\$version = 0.0/\$version = 10.0/' $resdir/Support/Fido.ps1 # Return the equivalent of Windows 10 by default.
    perl -i -pe's/"en-us"; Id = 0/"en-us"; Id = 1/' $resdir/Support/Fido.ps1  # Set language Id to one for UEFI Shell downloads.
    perl -i -pe's/curl/Invoke-WebRequest/' $resdir/Support/Fido.ps1 # Switch back to Invoke-WebRequest for Unix compatibility.
-   perl -i -pe's/Start-BitsTransfer -Source \$Url -Destination/Invoke-WebRequest -UseBasicParsing -TimeoutSec \$DefaultTimeout -Uri \$Url -OutFile/' $resdir/Support/Fido.ps1 # Use Invoke-WebRequest for ISO downloads since BITS is not available on Unix.
+   # Use Invoke-WebRequest for ISO downloads on Unix.
+   perl -i -pe's/Start-BitsTransfer.*/Invoke-WebRequest -UseBasicParsing -TimeoutSec \$DefaultTimeout -Uri \$Url -OutFile \$File/' $resdir/Support/Fido.ps1
+   perl -i -pe's/Get-CimInstance.*/uname -m/' $resdir/Support/Fido.ps1 # Use uname to get machine architecture on Unix.
+   perl -i -pe's/switch\(\$Arch\)/switch -Wildcard \(\$Arch\)/' $resdir/Support/Fido.ps1 # Use wildcards for matching values.
+   # Change architecture values to match uname output.
+   perl -i -pe's/0  \{/\"i\*86\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/1  \{/\"mips\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/2  \{/\"alpha\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/3  \{/\"ppc\*\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/5  \{/\"arm32\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/6  \{/\"ia64\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/9  \{/\"x86_64\"  \{/' $resdir/Support/Fido.ps1
+   perl -i -pe's/12 \{/\"arm64\" \{/' $resdir/Support/Fido.ps1
 fi
 # Check if PowerShell is supported and run script.
 version=$(pwsh -Version | awk '{print $NF}')
