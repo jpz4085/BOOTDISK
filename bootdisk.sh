@@ -527,35 +527,62 @@ if [[ ! -e $resdir/Support/Fido.ps1 || "$(grep "# Fido v" $resdir/Support/Fido.p
    perl -i -pe's/9  \{/\"x86_64\"  \{/' $resdir/Support/Fido.ps1
    perl -i -pe's/12 \{/\"arm64\" \{/' $resdir/Support/Fido.ps1
 fi
+# Choose to step through the script or provide all arguments.
+fido_mode="select"
+while [[ "$fido_mode" != "step" && "$fido_mode" != "cmds" ]]; do
+fido_title
+echo "Please select how to run the script:"
+echo " - Interactive Mode  (1)"
+echo " - CommandLine Mode  (2)"
+read -p "Please enter your choice to proceed: "
+case "$REPLY" in
+     "1")  fido_mode="step" ;;
+     "2")  fido_mode="cmds" ;;
+      * )  select_err  ;;
+esac
+done
 # Check if PowerShell is supported and run script.
 version=$(pwsh -Version | awk '{print $NF}')
 fido_prompt="Please enter your choice (q to Quit): "
 if  [ "$(printf '%s\n' "3.0" "$version" | sort -V | head -n1)" = "3.0" ]; then
-    pwsh $resdir/Support/Fido.ps1 -Win List
-    read -p "$fido_prompt" winver
-    if [[ "$winver" == "q" ]]; then return; fi
-    fido_title
-    pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel List
-    read -p "$fido_prompt" release
-    if [[ "$release" == "q" ]]; then return; fi
-    fido_title
-    pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed List
-    read -p "$fido_prompt" edition
-    if [[ "$edition" == "q" ]]; then return; fi
-    fido_title
-    pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang List
-    read -p "$fido_prompt" lang
-    if [[ "$lang" == "q" ]]; then return; fi
-    fido_title
-    pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch List
-    read -p "$fido_prompt" arch
-    if [[ "$arch" == "q" ]]; then return; fi
-    fido_title
-    cd ~/Downloads
-    pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch $arch
-    sleep 1
-    cd -
+    if   [[ "$fido_mode" == "step" ]]; then
+         fido_title
+         pwsh $resdir/Support/Fido.ps1 -Win List
+         read -p "$fido_prompt" winver
+         if [[ "$winver" == "q" ]]; then return; fi
+         fido_title
+         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel List
+         read -p "$fido_prompt" release
+         if [[ "$release" == "q" ]]; then return; fi
+         fido_title
+         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed List
+         read -p "$fido_prompt" edition
+         if [[ "$edition" == "q" ]]; then return; fi
+         fido_title
+         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang List
+         read -p "$fido_prompt" lang
+         if [[ "$lang" == "q" ]]; then return; fi
+         fido_title
+         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch List
+         read -p "$fido_prompt" arch
+         if [[ "$arch" == "q" ]]; then return; fi
+         fido_title
+         cd ~/Downloads
+         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch $arch
+         sleep 1
+         cd -
+    elif [[ "$fido_mode" == "cmds" ]]; then
+         fido_title
+         read -p "Enter script arguments (q to Quit): " fido_args
+         if [[ "$fido_args" == "q" ]]; then return; fi
+         fido_title
+         cd ~/Downloads
+         pwsh $resdir/Support/Fido.ps1 $fido_args
+         sleep 1
+         cd -
+    fi
 else
+    fido_title
     echo "PowerShell version 3.0 or higher required."
     echo
     read -n 1 -s -r -p "Press any key to continue"

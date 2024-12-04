@@ -31,7 +31,8 @@ Extract MS-DOS 8.0: Provide the path to the diskcopy.dll library from the Window
 on a working system or the same location in the sources\install.wim archive on install media.
 
 Download an ISO file using Fido: Download official retail Windows ISOs and UEFI Shell ISOs using
-the same PowerShell script employed by Rufus. Files are saved to the active user's Downloads folder.
+the same PowerShell script employed by Rufus. Fido can prompt for each parameter or all arguments
+can be passed on a single command line. Files are saved to the active user's Downloads folder.
 
 Verify a Windows ISO checksum: Calculate the SHA-1 value for a Windows DVD image and search for it in
 the sha1.rg-adguard.net databases. A match confirms you have an original and unmodified Microsoft ISO.
@@ -49,6 +50,11 @@ the file, folder or path into terminal but don't drag and drop. This will avoid 
 
 The main script will warn if critical dependencies are absent but not optional components. Review
 the list of requirements below and install anything needed to provide missing functionality.
+
+When using the Fido download script you may receive a error stating "Some users, entities and locations
+are banned from using this service" if you or a previous user with the same external IP address accessed
+the Microsoft servers in rapid succession. The solution is to wait at least a full 24 hours before making
+another attempt then use the Fido command line option (not interactive mode) to download the ISO.
 
 When creating Windows to Go media under Linux the terminal may suddenly be killed by the userspace out
 of memory killer (systemd-oomd) as indicated in the logs. This happens most frequently under the GNOME
