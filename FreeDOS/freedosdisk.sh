@@ -38,7 +38,7 @@ fi
 # Verify selected drive and format is valid and run actions.
 
 if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
-	disk_size=`diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-`
+	disk_size=$(diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-)
     
 	if [[ $fstyp == "FAT16" && $disk_size -ge 2147483648 ]]; then
 	   echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
@@ -53,11 +53,32 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Erase selected flash drive..."
 	diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
 	echo "Prepare disk and make bootable (sudo required)..."
-	sudo chmod o+rw /dev/'r'$drive
-	printf 'e 1\n'$pty'\n\n32\n\nf 1\nq\n' | fdisk -u -f Sectors/fdosmbr.bin -y -e /dev/'r'$drive > /dev/null
+	sudo chmod o+rw /dev/$drive
+	cyls=$(fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f1 -d"/")
+	hds=$(fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f2 -d"/")
+	spt=$(fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f3 -d"/")
+	printf 'e 1\n'$pty'\ny\n\n1\n1\n'$((cyls - 1))'\n'$((hds - 1))'\n'$spt'\nf 1\nq\n' | fdisk -y -e /dev/$drive &> /dev/null
 	osascript ../Support/click_ignore.scpt &> /dev/null
-	sudo chmod o+rw /dev/'r'$drive's1' /dev/$drive's1'
-	newfs_msdos -B Sectors/'fat'$fatsz'pbr'.bin -F $fatsz -v "$label" /dev/'r'$drive's1' > /dev/null
+	if [[ $cyls -lt 1024 ]]; then
+	   #Correct partition ending cylinder (first 8 bits).
+	   printf '1C5: %02X' $((cyls - 1 & 255)) | xxd -g 0 -r - /dev/$drive
+	   osascript ../Support/click_ignore.scpt &> /dev/null
+	fi
+	if [[ $hds -lt 255 ]]; then
+	   #Correct partition ending head if less than 255.
+	   printf '1C3: %02X' $((hds - 1)) | xxd -g 0 -r - /dev/$drive
+	   osascript ../Support/click_ignore.scpt &> /dev/null
+	fi
+	signature=$(dd if=/dev/random bs=1 count=4 status=none | xxd -p)
+	ms-sys -a -S $signature /dev/$drive > /dev/null
+	osascript ../Support/click_ignore.scpt &> /dev/null && sleep 1
+	sudo chmod o+rw /dev/$drive's1'
+	newfs_msdos -u $spt -h $hds -F $fatsz -v "$label" /dev/$drive's1' > /dev/null
+	if   [[ $pty == "e" ]]; then
+	     ms-sys -5 /dev/$drive's1' > /dev/null
+	elif [[ $pty == "c" ]]; then
+	     ms-sys -4 /dev/$drive's1' > /dev/null
+	fi
 	echo "Transfer system files..."
 	mcopy -s -m Files/* S:
 	mmove "S:/FREEDOS/BIN/EDIT.HLP" S:
