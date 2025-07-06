@@ -60,7 +60,7 @@ if    [[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
       exit 1
 elif  [[ $erase == "true" && -e /dev/$drive ]]; then
       if  [[ $system == "Darwin" ]]; then
-          disk_size=`diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-`
+          disk_size=$(diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-)
 
 	  if [[ $fstyp == "FAT16" && $disk_size -ge 2147483648 ]]; then
 	     echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
@@ -76,21 +76,21 @@ elif  [[ $erase == "true" && -e /dev/$drive ]]; then
 	       diskutil eraseDisk "Free Space" %noformat% GPT $drive > /dev/null
 	  fi
           echo "Partition and format disk (sudo required)..."
-          sudo chmod o+rw /dev/'r'$drive
+          sudo chmod o+rw /dev/$drive
           if   [[ $prtshm == "MBR" ]]; then
-               printf 'e 1\n'$pty'\n\n2048\n\n\nq\n' | fdisk -y -e /dev/'r'$drive &> /dev/null && $ignore_btn &> /dev/null
+               printf 'e 1\n'$pty'\n\n2048\n\n\nq\n' | fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
           elif [[ $prtshm == "GPT" ]]; then
-	       if  [[ -e /usr/local/bin/sgdisk ]]; then
-	           sgdisk -o /dev/'r'$drive > /dev/null 2>&1
-	           sgdisk -n 0:0:0 -t '0:'$pty -c 0:"$label" /dev/'r'$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+	       if  [[ ! -z $(command -v sgdisk) ]]; then
+	           sgdisk -o /dev/$drive > /dev/null 2>&1
+	           sgdisk -n 0:0:0 -t '0:'$pty -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
 	       else
-	           gpt remove -a /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	           gpt add -t $pty /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	           gpt label -i 1 -l "$label" /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	           gpt remove -a /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	           gpt add -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	           gpt label -i 1 -l "$label" /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	       fi
 	  fi
-	  sudo chmod o+rw /dev/'r'$drive's1'
-          newfs_msdos -F $fatsz -v "$label" /dev/'r'$drive's1' > /dev/null
+	  sudo chmod o+rw /dev/$drive's1'
+          newfs_msdos -F $fatsz -v "$label" /dev/$drive's1' > /dev/null
           echo "Mount boot disk..."
           diskutil mount $drive's1' > /dev/null
           echo "Disable Spotlight indexing..."
