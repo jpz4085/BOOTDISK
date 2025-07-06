@@ -24,9 +24,12 @@ system="$1"
 wimfile="$2"
 image="$3"
 drive="$4"
+biosmode="false"
 hivepath="Windows/System32/config/SYSTEM"
 winrepath="Windows/System32/Recovery/Winre.wim"
 prodname=$(wiminfo "$wimfile" $image | grep -m 1 Name: | sed "s/^.*: *//" | awk '{printf ("%s %s", $1, $2)}')
+
+if [[ ! -z $(command -v ms-sys) ]]; then biosmode="true"; fi #Legacy bootable.
 
 if    [[ -e /dev/$drive && $system == "Darwin" ]]; then
       ignore_btn="osascript ../Support/click_ignore.scpt" #Ignore disk warnings.
@@ -34,24 +37,29 @@ if    [[ -e /dev/$drive && $system == "Darwin" ]]; then
       echo "Erase selected flash drive..."
       diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
       echo "Prepare disk and make bootable (sudo required)..."
+      sudo chmod o+rw /dev/$drive
       printf 'e 1\nc\n\n2048\n716800\nf 1\ne 2\n7\n\n\n\nq\n' | \
-      sudo fdisk -u -f Sectors/mswinmbr.bin -y -e /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-      sudo Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-      sudo newfs_msdos -B Sectors/BOOTMGR/fat32pbr.bin -F 32 -v "UFD-SYSTEM" /dev/'r'$drive's1' > /dev/null
-      sudo dd if=Sectors/BOOTMGR/fat32ebs.bin of=/dev/'r'$drive's1' bs=512 seek=12 count=1 2> /dev/null
+      fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
+      Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+      sudo chmod o+rw /dev/$drive's1' /dev/$drive's2'
+      newfs_msdos -F 32 -v "UFD-SYSTEM" /dev/$drive's1' > /dev/null
+      if [[ "$biosmode" == "true" ]]; then
+         ms-sys -7 /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+         ms-sys -8 /dev/$drive's1' > /dev/null
+      fi
       personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
       if   [[ $personality == "Tuxera" ]]; then
-           sudo /usr/local/sbin/newfs_tuxera_ntfs -v "UFD-Windows" /dev/$drive's2' > /dev/null
-           echo "18: 3F00" | sudo xxd -g 0 -r - /dev/$drive's2' #Set sectors per track to 63.
-           echo "1A: FF00" | sudo xxd -g 0 -r - /dev/$drive's2' #Set number of heads to 255.
+           /usr/local/sbin/newfs_tuxera_ntfs -v "UFD-Windows" /dev/$drive's2' > /dev/null
+           echo "18: 3F00" | xxd -g 0 -r - /dev/$drive's2' #Set sectors per track to 63.
+           echo "1A: FF00" | xxd -g 0 -r - /dev/$drive's2' #Set number of heads to 255.
       elif [[ $personality == "UFSD_NTFS" ]]; then
            ufsd_path="/Library/Filesystems/ufsd_NTFS.fs/Contents/Resources"
-           sudo $ufsd_path/mkntfs -win7 -f -v:"UFD-Windows" /dev/$drive's2' > /dev/null
-           echo "1C: 00F80A00" | sudo xxd -g 0 -r - /dev/$drive's2' #Set start sector to 718,848.
+           $ufsd_path/mkntfs -win7 -f -v:"UFD-Windows" /dev/$drive's2' > /dev/null
+           echo "1C: 00F80A00" | xxd -g 0 -r - /dev/$drive's2' #Set start sector to 718,848.
       else
-           sudo mkntfs -Q -L "UFD-Windows" -p 718848 -H 255 -S 63 /dev/$drive's2' > /dev/null
+           mkntfs -Q -L "UFD-Windows" -p 718848 -H 255 -S 63 /dev/$drive's2' > /dev/null
       fi
-      sudo wimapply "$wimfile" $image /dev/$drive's2' 2> /tmp/wimfile_errors.txt
+      wimapply "$wimfile" $image /dev/$drive's2' 2> /tmp/wimfile_errors.txt
       if [[ ! $? -eq 0 ]]; then cat /tmp/wimfile_errors.txt; exit 1; fi
       echo "Mount the partitions..."
       diskutil mount $drive's1' > /dev/null
