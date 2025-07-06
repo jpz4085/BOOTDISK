@@ -98,8 +98,10 @@ elif  [[ $erase == "true" && -e /dev/$drive ]]; then
           extract_shell "$isofile" /Volumes/"$label"
       fi
       if  [[ $system == "Linux" ]]; then
-          disk_length=`sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}'`
-          disk_size=`blockdev --getsize64 /dev/$drive`
+          echo "Reading device information (sudo required)..."
+          sudo chmod o+rw /dev/$drive
+          disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
+          disk_size=$(blockdev --getsize64 /dev/$drive)
 	  disk_offset=$(($disk_length - 2048))
 	  
 	  if [[ $fstyp == "FAT16" && $disk_size -ge 2147483648 ]]; then
@@ -114,12 +116,13 @@ elif  [[ $erase == "true" && -e /dev/$drive ]]; then
 	  echo "Erase MBR/GPT structures..."
 	  dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
 	  dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
-	  echo "Partition and format disk (sudo required)..."
+	  echo "Partition and format disk..."
 	  if   [[ $prtshm == "MBR" ]]; then
 	       echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
 	  elif [[ $prtshm == "GPT" ]]; then
 	       echo 'type='$pty',name="'"$label"'"' | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	  fi
+	  sudo chmod o+rw /dev/$drive"1"
 	  mkfs.fat -F $fatsz -n "$label" /dev/$drive"1" > /dev/null
 	  echo "Mount boot disk..." && sleep 1
 	  gio mount -d /dev/$drive"1"
