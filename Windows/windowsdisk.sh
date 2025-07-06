@@ -27,10 +27,12 @@ label="$5"
 isofile="$6"
 wimtools="$7"
 drive="$8"
+biosmode="false"
 
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT32" ]]; then pty=c; fi                      #FAT32 LBA
    if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]]; then pty=7; fi  #NTFS/HPFS/exFAT
+   if [[ ! -z $(command -v ms-sys) ]]; then biosmode="true"; fi    #Legacy bootable.
 fi
 if [[ $prtshm == "GPT" ]]; then
    pty="EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"   #Microsoft basic data
@@ -178,15 +180,15 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Finished!"
 	sleep 1
 elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
-	disk_length=`sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}'`
-	disk_offset=$(($disk_length - 4096))
-
 	echo "Unmount volumes..."
 	umount /dev/$drive?
-	echo "Erase MBR/GPT structures..."
+	echo "Erase MBR/GPT structures (sudo required)..."
+	sudo chmod o+rw /dev/$drive
+	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
+	disk_offset=$(($disk_length - 4096))
 	dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
-	echo "Prepare disk and make bootable (sudo required)..."
+	echo "Prepare disk and make bootable..."
 	if [[ $uefint == "Y" ]]; then
 	   if   [[ $prtshm == "MBR" ]]; then
 	        echo -e ','$(($disk_length - 4096))','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
@@ -194,6 +196,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	        echo -e 'size='$(($disk_length - 6144))',type='$pty',name="'"$label"'"\nsize=2048,type='$pty',name=UEFI_NTFS' | \
 	        sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	   fi
+	   sudo chmod o+rw /dev/$drive"2"
 	   dd if=../Support/uefi-ntfs.img of=/dev/$drive"2" 2> /dev/null
 	else
 	   if   [[ $prtshm == "MBR" ]]; then
@@ -203,12 +206,13 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	        sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	   fi
 	fi
-	if [[ $prtshm == "MBR" && -e /usr/local/bin/ms-sys ]]; then
+	if [[ $prtshm == "MBR" && "$biosmode" == "true" ]]; then
 	   ms-sys -7 /dev/$drive > /dev/null && sleep 1
 	fi
+	sudo chmod o+rw /dev/$drive"1"
 	if [[ $fstyp == "FAT32" ]]; then
 	   mkfs.fat -F 32 -n "$label" /dev/$drive"1" > /dev/null
-	   if [[ $pty == "c" && -e /usr/local/bin/ms-sys ]]; then
+	   if [[ $pty == "c" && "$biosmode" == "true" ]]; then
 	      ms-sys -8 /dev/$drive"1" > /dev/null
 	   fi
 	elif [[ $fstyp == "EXFAT" ]]; then
@@ -216,7 +220,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	elif [[ $fstyp == "NTFS" ]]; then
 	     mkntfs -Q -L "$label" /dev/$drive"1" > /dev/null
 	fi
-	if [[ $pty == "7" && -e /usr/local/bin/ms-sys ]]; then
+	if [[ $pty == "7" && "$biosmode" == "true" ]]; then
 	   ms-sys -w /dev/$drive"1" > /dev/null
 	fi
 	echo "Mount boot disk..." && sleep 1
