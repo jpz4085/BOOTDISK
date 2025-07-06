@@ -38,7 +38,7 @@ fi
 # Verify selected drive and format is valid and run actions.
 
 if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
-	disk_size=`diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-`
+	disk_size=$(diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-)
     
 	if [[ $fstyp == "FAT16" && $disk_size -ge 2147483648 ]]; then
 	   echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
@@ -53,11 +53,15 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Erase selected flash drive..."
 	diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
 	echo "Prepare disk and make bootable (sudo required)..."
-	sudo chmod o+rw /dev/'r'$drive
-	printf 'e 1\n'$pty'\n\n32\n\nf 1\nq\n' | fdisk -u -f Sectors/msdosmbr.bin -y -e /dev/'r'$drive > /dev/null
+	sudo chmod o+rw /dev/$drive
+	printf 'e 1\n'$pty'\n\n32\n\nf 1\nq\n' | fdisk -y -e /dev/$drive &> /dev/null
 	osascript ../Support/click_ignore.scpt &> /dev/null
-	sudo chmod o+rw /dev/'r'$drive's1' /dev/$drive's1'
-	newfs_msdos -B Sectors/'fat'$fatsz'pbr'.bin -F $fatsz -v "$label" /dev/'r'$drive's1' > /dev/null
+	signature=$(dd if=/dev/random bs=1 count=4 status=none | xxd -p)
+	ms-sys -9 -S $signature /dev/$drive > /dev/null
+	osascript ../Support/click_ignore.scpt &> /dev/null && sleep 1
+	sudo chmod o+rw /dev/$drive's1'
+	newfs_msdos -F $fatsz -v "$label" /dev/$drive's1' > /dev/null
+	ms-sys -w /dev/$drive's1' > /dev/null
 	echo "Transfer system files..."
 	mcopy -s -m Files/* S:
 	mattrib +s +h +r S:/IO.SYS
