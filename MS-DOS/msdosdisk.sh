@@ -71,8 +71,10 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Finished!"
 	sleep 1
 elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
-	disk_length=`sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}'`
-	disk_size=`blockdev --getsize64 /dev/$drive`
+	echo "Reading device information (sudo required)..."
+	sudo chmod o+rw /dev/$drive
+	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
+	disk_size=$(blockdev --getsize64 /dev/$drive)
 	disk_offset=$(($disk_length - 2048))
 
 	if [[ $fstyp == "FAT16" && $disk_size -ge 2147483648 ]]; then
@@ -90,9 +92,10 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	echo "Erase MBR/GPT structures..."
 	dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
-	echo "Prepare disk and make bootable (sudo required)..."
+	echo "Prepare disk and make bootable..."
 	echo ',,'$pty',*;' | sudo sfdisk /dev/$drive > /dev/null
 	ms-sys -9 /dev/$drive > /dev/null && sleep 1
+	sudo chmod o+rw /dev/$drive"1"
 	mkfs.fat -F $fatsz -n "$label" /dev/$drive"1" > /dev/null
 	ms-sys -w /dev/$drive"1" > /dev/null
 	echo "Transfer system files..."
