@@ -20,7 +20,7 @@
 title_block () {
 cat<<EOF
 ===========================
-   ---BOOTDISK v1.6.1---
+   ---BOOTDISK v1.7---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -34,7 +34,7 @@ cat<<EOF
 EOF
 }
 
-menu_all () {
+menu_full () {
 while :
 do
 clear
@@ -90,7 +90,7 @@ esac
 done
 }
 
-menu_uefi () {
+menu_default () {
 while :
 do
 clear
@@ -231,6 +231,10 @@ if   [[ "$system" == "Darwin" ]]; then
          fi
      fi
 elif [[ "$system" == "Linux" ]]; then
+     if [[ -z "$winfsopts" ]]; then
+        if [[ ! -z $(command -v mkfs.exfat) ]]; then winfsopts+="/EXFAT"; fi
+        if [[ ! -z $(command -v mkntfs) ]]; then winfsopts+="/NTFS"; fi
+     fi
      if [[ ! -z $(command -v mkntfs) && ! -z $(command -v ntfs-3g) ]]; then
         if [[ $wimtools == "true" && ! -z $(command -v bcd-sys) ]]; then
            wtgsupport="true"
@@ -261,7 +265,7 @@ fi
 
 windowsdisk () {
 clear
-echo "     Windows Boot Disk Script      "
+echo "    Windows Install Disk Script    "
 echo "-----------------------------------"
 if [[ "$system" == "Darwin" ]]; then
    read -p "Enter target disk [disk#]: " tgtdsk
@@ -304,7 +308,12 @@ if   [[ "$system" == "Darwin" ]]; then
          done
      fi
 elif [[ "$system" == "Linux" ]]; then
-    read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
+    if   [[ "$winfsopts" != "" ]]; then
+         read -p "Enter file system [FAT32$winfsopts]: " fstyp
+    else
+         fstyp="FAT32"
+         echo "Only file system available is FAT32."
+    fi
     fstyp=${fstyp^^}
     while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" && $fstyp != "NTFS" ]]; do
         echo -e "${RED}Invalid file system type. Try again.${NC}"
@@ -676,7 +685,7 @@ done
 if  [[ $uselocale == "Y" ]]; then localize="true"; fi
 
 settimezone="false"
-if [[ $(command -v pwsh) != "" ]]; then
+if [[ ! -z $(command -v pwsh) ]]; then
    read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
    usetimezone=${usetimezone^^}
    while [[ $usetimezone != "Y" && $usetimezone != "N" ]]; do
@@ -815,20 +824,13 @@ else
 fi
 
 # Check for required packages that are missing.
-if [[ $(command -v 7z) == "" ]]; then missing+=" p7zip"; fi
-if [[ $(command -v jq) == "" ]]; then missing+=" jq"; fi
-if [[ $(command -v curl) == "" ]]; then missing+=" curl"; fi
-if [[ $system == "Linux" && $(command -v mkntfs) == "" ]]; then missing+=" ntfs-3g"; fi
-if [[ $system == "Linux" && $(command -v mkfs.exfat) == "" ]]; then missing+=" exfatprogs"; fi
+if [[ -z $(command -v 7z) ]]; then missing+=" 7zip"; fi
+if [[ -z $(command -v jq) ]]; then missing+=" jq"; fi
+if [[ -z $(command -v curl) ]]; then missing+=" curl"; fi
 if [[ $system == "Darwin" ]]; then
    bashver=$(bash --version | head -n 1 | awk '{print $4}' | cut -f1 -d'(')
    if  [ "$(printf '%s\n' "3.2.57" "$bashver" | sort -rV | head -n1)" == "3.2.57" ]; then
        missing+=" bash(>$bashver)"
-   fi
-fi
-if [[ $system == "Darwin" ]] || [[ $system == "Linux" && ! -z $(command -v ms-sys) ]]; then
-   if [[ $(command -v mtools) == "" ]]; then
-      missing+=" mtools"
    fi
 fi
 if [[ "$missing" != "" ]]; then
@@ -836,10 +838,23 @@ if [[ "$missing" != "" ]]; then
    exit 1
 fi
 
-# Check if user is member of disk group under Linux.
-if [[ $system == "Linux" && -z $(id | grep -o '(disk)') ]]; then
-   echo "Please add $USER to the disk group."
-   exit 1
+# Check for legacy BIOS and DOS support.
+if   [[ ! -z $(command -v mtools) ]]; then
+     mtools="true"
+else
+     mtools="false"
+fi
+if  [[ ! -z $(command -v ms-sys) ]]; then
+    biosmode="true"
+else
+    biosmode="false"
+fi
+
+# Check if wimlib and its tools are installed.
+if  [[ ! -z $(command -v wimlib-imagex) ]]; then
+    wimtools="true"
+else
+    wimtools="false"
 fi
 
 # Download UEFI:NTFS bootloader if missing or outdated.
@@ -853,20 +868,13 @@ if [[ ! -e $resdir/Support/uefi-ntfs.img ]] || [[ $uefint_commit_date > $uefint_
 	curl -o $resdir/Support/uefi-ntfs.img $uefint_url 2> /dev/null
 fi
 
-# Determine if wimlib and its tools are installed.
-if  [[ $(command -v wimlib-imagex) == "" ]]; then
-    wimtools="false"
+# Display menu for installed options.
+if   [[ "$mtools" == "true" && "$biosmode" == "true" ]]; then
+     if [[ -e $resdir/MS-DOS/Files/COMMAND.COM ]]; then
+	  menu_full
+     else
+	  menu_standard
+     fi
 else
-    wimtools="true"
-fi
-
-# Display menu for available options.
-if [[ $system == "Darwin" ]] || [[ $system == "Linux" && ! -z $(command -v ms-sys) ]]; then
-   if [[ -e $resdir/MS-DOS/Files/COMMAND.COM ]]; then
-	menu_all
-   else
-	menu_standard
-   fi
-else
-	menu_uefi
+	menu_default
 fi
