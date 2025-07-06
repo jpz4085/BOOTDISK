@@ -69,19 +69,22 @@ if    [[ -e /dev/$drive && $system == "Darwin" ]]; then
       rm "/Volumes/UFD-Windows/$winrepath"
       exit 0
 elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
-      disk_length=`sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}'`
-      disk_offset=$(($disk_length - 4096))
       echo "Unmount volumes..."
       umount /dev/$drive?
-      echo "Erase MBR/GPT structures..."
+      echo "Erase MBR/GPT structures (sudo required)..."
+      sudo chmod o+rw /dev/$drive
+      disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
+      disk_offset=$(($disk_length - 4096))
       dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
       dd if=/dev/zero of=/dev/$drive bs=1M seek=351 count=1 2> /dev/null
       dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
-      echo "Prepare disk and make bootable (sudo required)..."
+      echo "Prepare disk and make bootable..."
       echo -e ',716800,c,*\n,,7' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+      sudo chmod o+rw /dev/$drive"1"
       mkfs.fat -F 32 -n "UFD-SYSTEM" /dev/$drive"1" > /dev/null
+      sudo chmod o+rw /dev/$drive"2"
       mkntfs -Q -L "UFD-Windows" /dev/$drive"2" > /dev/null
-      if [[ ! -z $(command -v ms-sys) ]]; then
+      if [[ "$biosmode" == "true" ]]; then
          ms-sys -7 /dev/$drive > /dev/null && sleep 1
          ms-sys -8 /dev/$drive"1" > /dev/null && sleep 1
       fi
