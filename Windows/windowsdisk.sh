@@ -72,81 +72,71 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	     diskutil eraseDisk "Free Space" %noformat% GPT $drive > /dev/null
 	fi
 	echo "Prepare disk and make bootable (sudo required)..."
-	sudo chmod o+rw /dev/'r'$drive && sudo chmod o+rw /dev/$drive
-	disk_length=`diskutil info $drive | grep "Disk Size:" | awk '{print $8}'`
+	disk_length=$(diskutil info $drive | grep "Disk Size:" | awk '{print $8}')
+	sudo chmod o+rw /dev/$drive
 	if   [[ $uefint == "Y" ]]; then
 	     if   [[ $prtshm == "MBR" ]]; then
 	          printf 'e 1\n'$pty'\n\n2048\n'$(($disk_length - 4096))'\nf 1\ne 2\n1\n\n\n\nq\n' | \
-	          fdisk -u -f Sectors/mswinmbr.bin -y -e /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	          fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
 	          Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
-	          if  [[ -e /usr/local/bin/sgdisk ]]; then
-	              sgdisk -o /dev/'r'$drive > /dev/null 2>&1
-	              sgdisk -n 0:0:-4063 -t '0:'$pty -c 0:"$label" /dev/'r'$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
-	              sgdisk -n 0:0:-2015 -t '0:'$pty -c 0:UEFI_NTFS /dev/'r'$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+	          if  [[ ! -z $(command -v sgdisk) ]]; then
+	              sgdisk -o /dev/$drive > /dev/null 2>&1
+	              sgdisk -n 0:0:-4063 -t '0:'$pty -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+	              sgdisk -n 0:0:-2015 -t '0:'$pty -c 0:UEFI_NTFS /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
 	          else
-	              gpt remove -a /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt add -b 2048 -s $(($disk_length - 6144)) -t $pty /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt add -s 2048 -t $pty /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt label -i 1 -l "$label" /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt label -i 2 -l UEFI_NTFS /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt remove -a /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt add -b 2048 -s $(($disk_length - 6144)) -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt add -s 2048 -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt label -i 1 -l "$label" /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt label -i 2 -l UEFI_NTFS /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	          fi
 	     fi
-	     sudo chmod o+rw /dev/'r'$drive's2'
-	     dd if=../Support/uefi-ntfs.img of=/dev/'r'$drive's2' 2> /dev/null
+	     sudo chmod o+rw /dev/$drive's2'
+	     dd if=../Support/uefi-ntfs.img of=/dev/$drive's2' 2> /dev/null
 	else
 	     if   [[ $prtshm == "MBR" ]]; then
 	          printf 'e 1\n'$pty'\n\n2048\n\nf 1\nq\n' | \
-	          fdisk -u -f Sectors/mswinmbr.bin -y -e /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	          fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
 	          Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
-	          if  [[ -e /usr/local/bin/sgdisk ]]; then
-	              sgdisk -o /dev/'r'$drive > /dev/null 2>&1
-	              sgdisk -n 0:0:-2015 -t '0:'$pty -c 0:"$label" /dev/'r'$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+	          if  [[ ! -z $(command -v sgdisk) ]]; then
+	              sgdisk -o /dev/$drive > /dev/null 2>&1
+	              sgdisk -n 0:0:-2015 -t '0:'$pty -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
 	          else
-	              gpt remove -a /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt add -b 2048 -s $(($disk_length - 4096)) -t $pty /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt label -i 1 -l "$label" /dev/'r'$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt remove -a /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt add -b 2048 -s $(($disk_length - 4096)) -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	              gpt label -i 1 -l "$label" /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	          fi
 	     fi
 	fi
-	sudo chmod o+rw /dev/'r'$drive's1'
+	if [[ $prtshm == "MBR" && "$biosmode" == "true" ]]; then
+	   ms-sys -7 /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+	fi
+	sudo chmod o+rw /dev/$drive's1'
 	if   [[ $fstyp == "FAT32" ]]; then
-	     if  [[ $pty == "c" ]]; then
-	         newfs_msdos -B Sectors/BOOTMGR/fat32pbr.bin -F 32 -v "$label" /dev/'r'$drive's1' > /dev/null
-	         dd if=Sectors/BOOTMGR/fat32ebs.bin of=/dev/'r'$drive's1' bs=512 seek=12 count=1 2> /dev/null
-	     else
-	         newfs_msdos -F 32 -v "$label" /dev/'r'$drive's1' > /dev/null
+	     newfs_msdos -F 32 -v "$label" /dev/$drive's1' > /dev/null
+	     if [[ $pty == "c" && "$biosmode" == "true" ]]; then
+	        ms-sys -8 /dev/$drive's1' > /dev/null
 	     fi
 	elif [[ $fstyp == "EXFAT" ]]; then
-	     newfs_exfat -v "$label" /dev/'r'$drive's1' > /dev/null
-	     if [[ $pty == "7" ]]; then
-	        sudo chmod o+rw /dev/$drive's1'
-	        if  [[ ! -z $(command -v ms-sys) ]]; then
-	            ms-sys -x /dev/$drive's1' > /dev/null
-	        else
-	            exfatboot -B Sectors/BOOTMGR/exfatpbr.bin /dev/$drive's1' > /dev/null
-	        fi
+	     newfs_exfat -v "$label" /dev/$drive's1' > /dev/null
+	     if [[ $pty == "7" && "$biosmode" == "true" ]]; then
+	        ms-sys -x /dev/$drive's1' > /dev/null
 	     fi
 	elif [[ $fstyp == "NTFS" ]]; then
 	     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
 	     if   [[ $personality == "Tuxera" ]]; then
-	          sudo /usr/local/sbin/newfs_tuxera_ntfs -v "$label" /dev/$drive's1' > /dev/null
-	          echo "18: 3F00" | sudo xxd -g 0 -r - /dev/$drive's1' #Set sectors per track to 63.
-	          echo "1A: FF00" | sudo xxd -g 0 -r - /dev/$drive's1' #Set number of heads to 255.
-	          if [[ $pty == "7" ]]; then
-	             sudo chmod o+rw /dev/$drive's1'
-	             if  [[ ! -z $(command -v ms-sys) ]]; then
-	                 ms-sys -n /dev/$drive's1' > /dev/null
-	             else
-	                 dd if=Sectors/BOOTMGR/ntfspbr.bin of=/dev/$drive's1' bs=1 skip=84 seek=84 count=426 2> /dev/null
-	                 dd if=Sectors/BOOTMGR/ntfsipl.bin of=/dev/$drive's1' seek=1 count=9 2> /dev/null
-	             fi
+	          /usr/local/sbin/newfs_tuxera_ntfs -v "$label" /dev/$drive's1' > /dev/null
+	          echo "18: 3F00" | xxd -g 0 -r - /dev/$drive's1' #Set sectors per track to 63.
+	          echo "1A: FF00" | xxd -g 0 -r - /dev/$drive's1' #Set number of heads to 255.
+	          if [[ $pty == "7" && "$biosmode" == "true" ]]; then
+	             ms-sys -n /dev/$drive's1' > /dev/null
 	          fi
 	     elif [[ $personality == "UFSD_NTFS" ]]; then
 	          ufsd_path="/Library/Filesystems/ufsd_NTFS.fs/Contents/Resources"
-	          sudo $ufsd_path/mkntfs -win7 -f -v:"$label" /dev/$drive's1' > /dev/null
-	          echo "1C: 00080000" | sudo xxd -g 0 -r - /dev/$drive's1' #Set start sector to 2048.
+	          $ufsd_path/mkntfs -win7 -f -v:"$label" /dev/$drive's1' > /dev/null
+	          echo "1C: 00080000" | xxd -g 0 -r - /dev/$drive's1' #Set start sector to 2048.
 	     fi
 	fi
 	echo "Mount boot disk..."
