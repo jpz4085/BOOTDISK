@@ -2,78 +2,79 @@
 				BOOTDISK: Flash Drive Formatting Tool
 				*************************************
 				
-ABOUT
+Main Menu
+=========
 
-This utility consists of a set of BASH scripts that will automatically configure removable media using
-GPT or MBR partition schemes and format with FAT16/32, exFAT or NTFS and the required bootstrapping code to
-enable startup on UEFI and BIOS systems. It provides functionality similar to the Rufus USB Tool for Windows.
+FreeDOS 1.3   Create a boot disk containing a basic set of utilities like FDISK,FORMAT,SYS,EDIT,etc.
 
-Main Menu:
+MS-DOS 8.0    Create a boot disk using the MS-DOS version included with Windows from XP to 8.1.
+              This option is not present by default and must be enabled from the Tools sub-menu.
+
+Windows 7-11  Create Windows install media and optionally extract an ISO image to the disk.
+              Windows to Go media is supported when the proper dependencies are installed.
+
+UEFI Shell    Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
+
+Tools Menu
 ==========
 
-FreeDOS 1.3 – Create a boot disk containing a basic set of utilities like FDISK,FORMAT,SYS,EDIT,etc.
+Extract MS-DOS 8.0:
 
-MS-DOS 8.0 – Create a boot disk using the DOS version included with Windows from XP to 8.1.
-These files are not included with BOOTDISK so this option must be enabled from the Tools sub-menu.
+Provide the path to the diskcopy.dll library from the Windows\SysWOW64 folder. This can be found
+on a working system or the same location in the sources\install.wim archive on the install media.
 
-Windows – Create bootable Windows media and optionally extract an ISO image to the disk.
-Create bootable Windows to Go media from an ISO image using the wimtools and bcd-sys scripts.
-When using exFAT or NTFS format the disk can be made UEFI bootable using the UEFI:NTFS bootloader.
-When using FAT32 format the script will split the install.wim archive when necessary provided the
-wimtools are available. Otherwise a file system compatibility warning will be displayed.
+Download an ISO file:
 
-UEFI Shell - Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
+Download official retail Windows ISOs and UEFI Shell ISOs using the same PowerShell script employed
+by Rufus. Fido can prompt for each parameter or all arguments can be passed on a single command line.
+Files are saved to the active user's Downloads folder.
 
-Tools Menu:
-===========
+Verify Windows ISO checksum:
 
-Extract MS-DOS 8.0: Provide the path to the diskcopy.dll library from the Windows\SysWOW64 folder
-on a working system or the same location in the sources\install.wim archive on install media.
-
-Download an ISO file using Fido: Download official retail Windows ISOs and UEFI Shell ISOs using
-the same PowerShell script employed by Rufus. Fido can prompt for each parameter or all arguments
-can be passed on a single command line. Files are saved to the active user's Downloads folder.
-
-Verify a Windows ISO checksum: Calculate the SHA-1 value for a Windows DVD image and search for it in
-the sha1.rg-adguard.net databases. A match confirms you have an original and unmodified Microsoft ISO.
+Calculate the SHA-1 value for a Windows DVD image and search for it in the sha1.rg-adguard.net databases.
+A match confirms you have an original and unmodified Microsoft ISO file.
  
-Custom Windows installation: Automatically create a local account, configure privacy/data collection
-settings, use the current language and timezone settings, skip wireless network setup, and disable
-automatic BitLocker encryption. Disable the mandatory Microsoft account screen and bypass the
-hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
+Custom Windows installation:
 
-Troubleshooting:
-================
+Automatically create a local account, configure privacy/data collection settings, use the current language
+and timezone settings, skip wireless network setup, and disable automatic BitLocker encryption. Disable the
+mandatory Microsoft account screen and bypass hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
+
+Troubleshooting
+===============
+
+1. File and folder paths:
 
 When entering file and folder paths at the prompts they should not contain any quotes so just paste
 the file, folder or path into terminal but don't drag and drop. This will avoid invalid path errors.
 
-The main script will warn if critical dependencies are absent but not optional components. Review
-the list of requirements below and install anything needed to provide missing functionality.
+2. Windows ISO downloads:
 
 When using the Fido download script you may receive a error stating "Some users, entities and locations
 are banned from using this service" if you or a previous user with the same external IP address accessed
 the Microsoft servers in rapid succession. The solution is to wait at least a full 24 hours before making
 another attempt then use the Fido command line option (not interactive mode) to download the ISO.
 
+3. Windows to Go process:
+
 When creating Windows to Go media under Linux the terminal may suddenly be killed by the userspace out
 of memory killer (systemd-oomd) as indicated in the logs. This happens most frequently under the GNOME
-desktop environment. This will require increasing the Memory Pressure Limit to 80% and increasing the
-Memory Pressure Duration to one minute if the default values are lower on the systemd-oomd service and
-the systemd user environment service (user@service). The vendor defaults can be overridden with drop-
-in configuration files as indicated in the repository Notes file and Linux documentation.
+desktop environment. See the repository Notes file or Linux documentation about overriding the default
+Memory Pressure Limit and Memory Pressure Duration values with drop-in configuration files.
 
-Requirements:
-=============
+Dependencies
+============
 
-Common packages: p7zip, mtools, hivex, bcd-sys, powershell and jq (JSON processor).
+Packages required for default features.
+Windows Install and UEFI Shell media:
+7zip, curl, jq, bash (above 3.2 on macOS)
 
-Linux packages: curl, ms-sys, exfat-progs, ntfs-3g and wimtools.
-Note that if ms-sys is omitted the tool will create UEFI bootable media only.
-Also your account should be a member of the "disk" group to allow unprivileged device access.
-Sudo is only used where mandatory.
+Packages for recommended features.
+Windows/UEFI Shell ISO downloads: powershell
+Linux NTFS and exFAT Support:     ntfs-3g, exfatprogs
 
-macOS packages: bash (above version 3.2), wimlib and NTFS write support.
-These can be installed using the MacPorts or Homebrew package managers.
-Optional components include ms-sys for legacy EXFAT and NTFS booting and sgdisk for GPT partitioning.
-NTFS install media requires the Tuxera or Paragon products while Windows to Go supports NTFS-3G.
+Packages for optional features.
+Legacy BIOS Support and DOS media: ms-sys,mtools
+Support for Windows To Go media:   wimtools,bcd-sys
+macOS NTFS Write/Format Support:   Tuxera/Paragon
+
