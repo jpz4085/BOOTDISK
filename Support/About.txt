@@ -13,7 +13,9 @@ MS-DOS 8.0    Create a boot disk using the MS-DOS version included with Windows 
 Windows 7-11  Create Windows install media and optionally extract an ISO image to the disk.
               Windows to Go media is supported when the proper dependencies are installed.
 
-UEFI Shell    Create a boot disk using the pre-built UEFI Shell image provided by Pete Batard.
+Linux/Other   Create bootable live Linux media (including persistence with supported distributions)
+              as well as other install media and pre-built UEFI Shell images provided by Pete Batard.
+              The script can write raw disk images using dd or partition and format the disk.
 
 Tools Menu
 ==========
@@ -39,6 +41,23 @@ Custom Windows installation:
 Automatically create a local account, configure privacy/data collection settings, use the current language
 and timezone settings, skip wireless network setup, and disable automatic BitLocker encryption. Disable the
 mandatory Microsoft account screen and bypass hardware requirements (TPM/Secure Boot/RAM) for Windows 11.
+
+Linux Persistence
+=================
+
+The steps below are required to enable persistence on certain Linux distributions when creating the live
+media from macOS. The necessary file or folders must be created from the live environment the first time.
+
+Debian: Open a terminal and enter "lsblk -f" to identify the mount point of the persistence partition.
+        Change to the mount folder and enter the follow command to create the required config file.
+        echo "/ union" | sudo tee persistence.conf (This will make all changes persistent.)
+        
+Fedora: Disregard the missing persistent overlay error which occurs during the first boot process.
+        Open a terminal and enter "lsblk -f" to identify the mount point of the persistence image file.
+        Change to the mount folder and enter the follow command to create the required overlay folders.
+        sudo mkdir -m 0755 --context=system_u:object_r:root_t:s0 overlayfs ovlwork
+        
+Reboot and confirm that persistence is working as expected.
 
 Troubleshooting
 ===============
@@ -77,4 +96,5 @@ Packages for optional features.
 Legacy BIOS Support and DOS media: ms-sys,mtools
 Support for Windows To Go media:   wimtools,bcd-sys
 macOS NTFS Write/Format Support:   Tuxera/Paragon
+macOS Linux Persistence Support:   e2fsprogs
 
