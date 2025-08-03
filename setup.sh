@@ -55,7 +55,7 @@ elif [[ "$1" == "upgrade" ]]; then
      install -m 755 bootdisk.sh $bindir/bootdisk
      install -m 755 FreeDOS/freedosdisk.sh $resdir/FreeDOS
      install -m 755 MS-DOS/msdosdisk.sh $resdir/MS-DOS
-     install -m 755 Support/uefishelldisk.sh $resdir/Support
+     install -m 755 Support/linuxotherdisk.sh $resdir/Support
      install -m 644 Support/About.txt $resdir/Support
      install -m 755 Windows/*.sh $resdir/Windows
      echo "Finished."
