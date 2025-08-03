@@ -20,7 +20,7 @@
 title_block () {
 cat<<EOF
 ===========================
-   ---BOOTDISK v1.7---
+   ---BOOTDISK v1.8---
 Flash Drive Formatting Tool
 ===========================
 Select an option:
@@ -43,7 +43,7 @@ cat<<EOF
 FreeDOS 1.3  (1)
 MS-DOS  8.0  (2)
 Windows 7-11 (3)
-UEFI Shell   (4)
+Linux/Other  (4)
 Tools Menu   (5)
 About        (6)
 Quit         (7)
@@ -54,7 +54,7 @@ case "$REPLY" in
 "1")  fdosdisk    ;;
 "2")  msdosdisk   ;;
 "3")  windowsmode ;;
-"4")  uefi_shell  ;;
+"4")  linux_other ;;
 "5")  menu_tools  ;;
 "6")  show_about  ;;
 "7")  exit        ;;
@@ -71,7 +71,7 @@ title_block
 cat<<EOF
 FreeDOS 1.3  (1)
 Windows 7-11 (2)
-UEFI Shell   (3)
+Linux/Other  (3)
 Tools Menu   (4)
 About        (5)
 Quit         (6)
@@ -81,7 +81,7 @@ read -p"Enter Choice: "
 case "$REPLY" in
 "1")  fdosdisk    ;;
 "2")  windowsmode ;;
-"3")  uefi_shell  ;;
+"3")  linux_other ;;
 "4")  menu_tools  ;;
 "5")  show_about  ;;
 "6")  exit        ;;
@@ -97,7 +97,7 @@ clear
 title_block
 cat<<EOF
 Windows 7-11 (1)
-UEFI Shell   (2)
+Linux/Other  (2)
 Tools Menu   (3)
 About        (4)
 Quit         (5)
@@ -106,7 +106,7 @@ lower_border
 read -p"Enter Choice: "
 case "$REPLY" in
 "1")  windowsmode ;;
-"2")  uefi_shell  ;;
+"2")  linux_other ;;
 "3")  menu_tools  ;;
 "4")  show_about  ;;
 "5")  exit        ;;
@@ -435,19 +435,58 @@ else
 fi
 }
 
-uefi_shell () {
+linux_other () {
 clear
-echo "      UEFI Shell Disk Script      "
+echo "      Linux and Other Script      "
 echo "----------------------------------"
-read -p "Wipe disk before extracting files [Y/N]? " wipe
-wipe=${wipe^^}
-while [[ $wipe != "Y" && $wipe != "N" ]]; do
-      echo -e "${RED}Invalid entry. Try again.${NC}"
-      read -p "Wipe disk before extracting files [Y/N]? " wipe
-      wipe=${wipe^^}
+wipedisk="false"
+ddmode="false"
+prtshm="CURRENT"
+pstpart="N/A"
+fstyp="N/A"
+volname="N/A"
+pstcompatlist="d-live|elementary|Ubuntu|Mint|Fedora|Pop_OS|Zorin|CDROM"
+ubtcompatlist="elementary|Ubuntu|Mint|Pop_OS|Zorin"
+read -p "Enter path to file: " image
+while [[ ! -f "$image" ]]; do
+      echo -e "${RED}Unable to access image file. Try again.${NC}"
+      read -p "Enter path to file: " image
 done
+if   [[ "$image" == *".iso"* ]]; then
+     if   [[ "$system" == "Darwin" ]]; then
+          isodevinfo=$(hdiutil attach -nomount "$image" | head -n1)
+          isoblkdev=$(echo "$isodevinfo" | awk '{print $1}')
+          prtable=$(echo "$isodevinfo" | awk '{print $2}')
+          hdiutil detach $isoblkdev > /dev/null
+     elif [[ "$system" == "Linux" ]]; then
+          prtable=$(fdisk -l "$image" 2> /dev/null | grep 'Disklabel type:')
+     fi
+     if [[ ! -z "$prtable" ]]; then hybridiso="true"; else hybridiso="false"; fi
+     if [[ "$hybridiso" == "true" ]]; then
+        read -p "Write image using the dd utility [Y/N]? " ddwrite
+        ddwrite=${ddwrite^^}
+        while [[ $ddwrite != "Y" && $ddwrite != "N" ]]; do
+              echo -e "${RED}Invalid entry. Try again.${NC}"
+              read -p "Write image using the dd utility [Y/N]? " ddwrite
+              ddwrite=${ddwrite^^}
+        done
+        if [[ "$ddwrite" == "Y" ]]; then prtshm="ERASE"; ddmode="true"; fi
+     fi
+     if [[ "$hybridiso" == "false" || "$ddmode" == "false" ]]; then
+        read -p "Wipe disk before extracting files [Y/N]? " wipe
+        wipe=${wipe^^}
+        while [[ $wipe != "Y" && $wipe != "N" ]]; do
+              echo -e "${RED}Invalid entry. Try again.${NC}"
+              read -p "Wipe disk before extracting files [Y/N]? " wipe
+              wipe=${wipe^^}
+        done
+        if [[ $wipe == "Y" ]]; then wipedisk="true"; fi
+     fi
+else
+     prtshm="ERASE"
+fi
 
-if  [[ $wipe == "Y" ]]; then
+if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
     if [[ "$system" == "Darwin" ]]; then
     read -p "Enter target disk [disk#]: " target
     while [[ $target != *"disk"* ]]; do
@@ -461,48 +500,94 @@ if  [[ $wipe == "Y" ]]; then
                read -p "Enter target disk [sd*]: " target
          done
     fi
-    read -p "Enter partition scheme [GPT/MBR]: " prtshm
-    prtshm=${prtshm^^}
-    while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
-          echo -e "${RED}Invalid partition scheme. Try again.${NC}"
-          read -p "Enter partition scheme [GPT/MBR]: " prtshm
-          prtshm=${prtshm^^}
-    done
-    read -p "Enter file system [FAT16/FAT32]: " fstyp
-    fstyp=${fstyp^^}
-    while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
-          echo -e "${RED}Invalid file system type. Try again.${NC}"
-          read -p "Enter file system [FAT16/FAT32]: " fstyp
-          fstyp=${fstyp^^}
-    done
-    read -p "Enter label [UEFI_SHELL]: " volname
-    if [[ "$volname" == "" ]]; then volname="UEFI_SHELL"; fi
-    volname=${volname^^}
-    n=${#volname}
-    while [ $n -gt 11 ]; do
-          echo -e "${RED}Label must be eleven characters or less.${NC}"
-          read -p "Enter label [UEFI_SHELL]: " volname
-          n=${#volname}
-    done
+    if [[ "$wipedisk" == "true" ]]; then
+       read -p "Enter partition scheme [GPT/MBR]: " prtshm
+       prtshm=${prtshm^^}
+       while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
+             echo -e "${RED}Invalid partition scheme. Try again.${NC}"
+             read -p "Enter partition scheme [GPT/MBR]: " prtshm
+             prtshm=${prtshm^^}
+       done
+       read -p "Enter file system [FAT16/FAT32]: " fstyp
+       fstyp=${fstyp^^}
+       while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
+             echo -e "${RED}Invalid file system type. Try again.${NC}"
+             read -p "Enter file system [FAT16/FAT32]: " fstyp
+             fstyp=${fstyp^^}
+       done
+       shopt -s extglob
+       volname=$(file "$image" | awk -F"'" '{for (i=2; i<=NF; i+=2) print $i}' | head -c 11)
+       volname=${volname//[\*\?\/\\\|\,\;\:\+\=\<\>\[\]\"\.]/}
+       volname=${volname##*( )}
+       volname=${volname%%*( )}
+       volname=${volname^^}
+       read -p "Enter label [$volname]: " newvolname
+       if [[ ! -z "$newvolname" ]]; then
+          n=${#newvolname}
+          while [ $n -gt 11 ]; do
+                echo -e "${RED}Label must be eleven characters or less.${NC}"
+                read -p "Enter label [$volname]: " newvolname
+                n=${#newvolname}
+          done
+          volname="$newvolname"
+          volname=${volname^^}
+       fi
+       if file "$image" | grep -qiE "$pstcompatlist"; then
+          if   [[ ! -z $(command -v mkfs.ext4) ]]; then
+               read -p "Enter size of persistent partition [0M]: " pstpartsz
+               if [[ ! -z "$pstpartsz" ]]; then
+                  pstpartsz=${pstpartsz^^}
+                  if   [[ "$pstpartsz" == "MAX" ]]; then
+                       if   [[ "$system" == "Darwin" ]]; then
+                            pstpart="END"
+                       elif [[ "$system" == "Linux" ]]; then
+                            pstpart="+"
+                       fi
+                  else
+                       while [[ ! ${pstpartsz%?} =~ ^[0-9]+$ || ! ${pstpartsz: -1} =~ [KMGT] ]]; do
+                             echo -e "${RED}Invalid partition size. Try again.${NC}"
+                             read -p "Enter size of persistent partition [0M]: " pstpartsz
+                             if   [[ ! -z "$pstpartsz" ]]; then
+                                  pstpartsz=${pstpartsz^^}
+                                  if [[ "$pstpartsz" == "MAX" ]]; then
+                                     if   [[ "$system" == "Darwin" ]]; then
+                                          pstpart="END"
+                                     elif [[ "$system" == "Linux" ]]; then
+                                          pstpart="+"
+                                     fi
+                                     break
+                                  fi
+                             else
+                                  break
+                             fi
+                       done
+                       if [[ ! -z "$pstpartsz" && ${pstpartsz%?} != "0" && "$pstpartsz" != "MAX" ]]; then
+                          pstpart="$pstpartsz"
+                       fi
+                  fi
+               fi
+          elif file "$image" | grep -qiE "$ubtcompatlist"; then
+               read -p "Allow linux to use the remaining space for persistence [Y/N]? " enablepst
+               enablepst=${enablepst^^}
+               while [[ $enablepst != "Y" && $enablepst != "N" ]]; do
+                     echo -e "${RED}Invalid entry. Try again.${NC}"
+                     read -p "Allow linux to use the remaining space for persistence [Y/N]?  " enablepst
+                     enablepst=${enablepst^^}
+               done
+               if [[ $enablepst == "Y" ]]; then pstpart="deferred"; fi
+          fi
+       fi
+    fi
 else
     if [[ "$system" == "Darwin" ]]; then
        read -p "Enter path to disk [/Volumes/Untitled]: " target
     elif [[ "$system" == "Linux" ]]; then
          read -p "Enter path to disk [/media/user/USBDISK]: " target
     fi
-    prtshm="CURRENT"
-    fstyp="N/A"
-    volname="N/A"
 fi
 
-read -p "Enter ISO path: " image
-while [[ "$image" != *".iso"* ]]; do
-      echo -e "${RED}Invalid file type. Try again.${NC}"
-      read -p "Enter ISO path: " image
-done
-
 echo
-(cd $resdir/Support; ./uefishelldisk.sh $system "$image" "$target" $prtshm $fstyp "$volname")
+(cd $resdir/Support; ./linuxotherdisk.sh $system "$image" "$target" $prtshm $pstpart $fstyp "$volname")
 }
 
 fido_title () {
