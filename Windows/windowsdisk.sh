@@ -29,6 +29,20 @@ wimtools="$7"
 drive="$8"
 biosmode="false"
 
+mbyte=1048576
+
+endian () {
+v=$1
+i=${#v}
+
+while [ $i -gt 0 ]
+do
+    i=$[$i-2]
+    echo -n ${v:$i:2}
+done
+echo
+}
+
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT32" ]]; then pty=c; fi                      #FAT32 LBA
    if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]]; then pty=7; fi  #NTFS/HPFS/exFAT
@@ -37,8 +51,6 @@ fi
 if [[ $prtshm == "GPT" ]]; then
    pty="EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"   #Microsoft basic data
 fi
-
-ignore_btn="osascript ../Support/click_ignore.scpt" #Close macOS disk warning dialogue.
 
 # Verify selected ISO file then check size of install archive.
 if  [[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
@@ -65,78 +77,84 @@ fi
 
 # Verify selected disk and run requested actions.
 if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
+    ignore_btn="osascript ../Support/click_ignore.scpt" #Close macOS disk warning dialogue.
+    devblksz=$(diskutil info $drive | grep 'Device Block Size:' | awk '{print $4}')
+    disk_size=$(diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-)
+    disk_mibsz=$(($disk_size / $mbyte)) #Disk space in whole MiBs
+    disk_blocks=$((($disk_mibsz * $mbyte) / $devblksz)) #Disk space in sectors
+    mibblksz=$(($mbyte / $devblksz))
 	echo "Erase selected flash drive..."
 	if   [[ $prtshm == "MBR" ]]; then
 	     diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
 	elif [[ $prtshm == "GPT" ]]; then
-	     diskutil eraseDisk "Free Space" %noformat% GPT $drive > /dev/null
+	     diskutil eraseDisk -noEFI "Free Space" %noformat% GPT $drive > /dev/null
 	fi
-	echo "Prepare disk and make bootable (sudo required)..."
-	disk_length=$(diskutil info $drive | grep "Disk Size:" | awk '{print $8}')
-	sudo chmod o+rw /dev/$drive
+	echo "Partition and format disk (sudo required)..."
+    hds=$(sudo fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f2 -d"/")
+    spt=$(sudo fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f3 -d"/")
 	if   [[ $uefint == "Y" ]]; then
 	     if   [[ $prtshm == "MBR" ]]; then
-	          printf 'e 1\n'$pty'\n\n2048\n'$(($disk_length - 4096))'\nf 1\ne 2\n1\n\n\n\nq\n' | \
+              sudo chmod o+rw /dev/$drive
+              winpart=$(($disk_blocks - ($mibblksz * 2)))
+	          printf 'e 1\n'$pty'\n\n'$mibblksz'\n'$winpart'\nf 1\ne 2\n1\n\n\n'$mibblksz'\nq\n' | \
 	          fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
 	          Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
 	          if  [[ ! -z $(command -v sgdisk) ]]; then
-	              sgdisk -o /dev/$drive > /dev/null 2>&1
-	              sgdisk -n 0:0:-4063 -t '0:'$pty -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
-	              sgdisk -n 0:0:-2015 -t '0:'$pty -c 0:UEFI_NTFS /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+                  diskargs=(-n '1:0:+'$(($disk_mibsz - 3))M -n 2:0:+1M -t '1:'$pty -t '2:'$pty -c 1:"$label" -c 2:UEFI_NTFS)
+	              sudo sgdisk "${diskargs[@]}" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
 	          else
-	              gpt remove -a /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt add -b 2048 -s $(($disk_length - 6144)) -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt add -s 2048 -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt label -i 1 -l "$label" /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt label -i 2 -l UEFI_NTFS /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+                  diskargs=(%$pty% %noformat% $(($disk_mibsz - 2))MiB %$pty% %noformat% 1MiB "Free Space" %noformat% R)
+                  diskutil partitionDisk -noEFI $drive 3 GPT "${diskargs[@]}" > /dev/null
 	          fi
 	     fi
-	     sudo chmod o+rw /dev/$drive's2'
-	     dd if=../Support/uefi-ntfs.img of=/dev/$drive's2' 2> /dev/null
+	     sudo dd if=../Support/uefi-ntfs.img of=/dev/$drive's2' 2> /dev/null
 	else
 	     if   [[ $prtshm == "MBR" ]]; then
-	          printf 'e 1\n'$pty'\n\n2048\n\nf 1\nq\n' | \
+              sudo chmod o+rw /dev/$drive
+              winpart=$(($disk_blocks - $mibblksz))
+	          printf 'e 1\n'$pty'\n\n'$mibblksz'\n'$winpart'\nf 1\nq\n' | \
 	          fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
 	          Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
 	          if  [[ ! -z $(command -v sgdisk) ]]; then
-	              sgdisk -o /dev/$drive > /dev/null 2>&1
-	              sgdisk -n 0:0:-2015 -t '0:'$pty -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+	              sudo sgdisk -I -n 0:0:0 -t '0:'$pty -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
 	          else
-	              gpt remove -a /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt add -b 2048 -s $(($disk_length - 4096)) -t $pty /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	              gpt label -i 1 -l "$label" /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+                  diskutil eraseDisk -noEFI FAT32 %noformat% GPT $drive > /dev/null
 	          fi
 	     fi
 	fi
-	if [[ $prtshm == "MBR" && "$biosmode" == "true" ]]; then
-	   ms-sys -7 /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-	fi
+    if [[ $prtshm == "MBR" && "$biosmode" == "true" ]]; then
+       ms-sys -7 /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+    fi
 	sudo chmod o+rw /dev/$drive's1'
 	if   [[ $fstyp == "FAT32" ]]; then
-	     newfs_msdos -F 32 -v "$label" /dev/$drive's1' > /dev/null
-	     if [[ $pty == "c" && "$biosmode" == "true" ]]; then
-	        ms-sys -8 /dev/$drive's1' > /dev/null
-	     fi
+         newfs_msdos -u $spt -h $hds -F 32 -v "$label" /dev/$drive's1' > /dev/null
+         if [[ $pty == "c" && "$biosmode" == "true" ]]; then
+            ms-sys -8 /dev/$drive's1' > /dev/null
+         fi
 	elif [[ $fstyp == "EXFAT" ]]; then
 	     newfs_exfat -v "$label" /dev/$drive's1' > /dev/null
 	     if [[ $pty == "7" && "$biosmode" == "true" ]]; then
-	        ms-sys -x /dev/$drive's1' > /dev/null
+            ms-sys -x /dev/$drive's1' > /dev/null
 	     fi
 	elif [[ $fstyp == "NTFS" ]]; then
 	     personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
 	     if   [[ $personality == "Tuxera" ]]; then
+              spthex=$(endian $(printf '%04X' $spt))
+              hdshex=$(endian $(printf '%04X' $hds))
 	          /usr/local/sbin/newfs_tuxera_ntfs -v "$label" /dev/$drive's1' > /dev/null
-	          echo "18: 3F00" | xxd -g 0 -r - /dev/$drive's1' #Set sectors per track to 63.
-	          echo "1A: FF00" | xxd -g 0 -r - /dev/$drive's1' #Set number of heads to 255.
+	          echo "18: $spthex" | xxd -g 0 -r - /dev/$drive's1' #Set sectors per track per fdisk.
+	          echo "1A: $hdshex" | xxd -g 0 -r - /dev/$drive's1' #Set number of heads per fdisk.
 	          if [[ $pty == "7" && "$biosmode" == "true" ]]; then
-	             ms-sys -n /dev/$drive's1' > /dev/null
-	          fi
+                 ms-sys -n /dev/$drive's1' > /dev/null
+              fi
 	     elif [[ $personality == "UFSD_NTFS" ]]; then
+              winpartsect=$(diskutil info $drive's1' | grep 'Partition Offset:' | awk '{print $5}' | sed 's/(//')
+              winparthex=$(endian $(printf '%08X' $winpartsect))
 	          ufsd_path="/Library/Filesystems/ufsd_NTFS.fs/Contents/Resources"
 	          $ufsd_path/mkntfs -win7 -f -v:"$label" /dev/$drive's1' > /dev/null
-	          echo "1C: 00080000" | xxd -g 0 -r - /dev/$drive's1' #Set start sector to 2048.
+	          echo "1C: $winparthex" | xxd -g 0 -r - /dev/$drive's1' #Set start sector per partition offset.
 	     fi
 	fi
 	echo "Mount boot disk..."
@@ -170,20 +188,25 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	echo "Finished!"
 	sleep 1
 elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
+	echo "Reading device information (sudo required)..."
+	sudo chmod o+rw /dev/$drive
+	devblksz=$(blockdev --getss /dev/$drive)
+	disk_size=$(blockdev --getsize64 /dev/$drive)
+	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
 	echo "Unmount volumes..."
 	umount /dev/$drive?
-	echo "Erase MBR/GPT structures (sudo required)..."
-	sudo chmod o+rw /dev/$drive
-	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
-	disk_offset=$(($disk_length - 4096))
+	echo "Erase MBR/GPT structures..."
+	mibblksz=$(($mbyte / $devblksz))
+	disk_offset=$(($disk_length - mibblksz))
 	dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	echo "Prepare disk and make bootable..."
+	disk_mbytes=$(($disk_size / $mbyte)) #Disk space in whole MiBs
 	if [[ $uefint == "Y" ]]; then
 	   if   [[ $prtshm == "MBR" ]]; then
-	        echo -e ','$(($disk_length - 4096))','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	        echo -e ','$(($disk_mbytes - 2))M','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
 	   elif [[ $prtshm == "GPT" ]]; then
-	        echo -e 'size='$(($disk_length - 6144))',type='$pty',name="'"$label"'"\nsize=2048,type='$pty',name=UEFI_NTFS' | \
+	        echo -e 'size='$(($disk_mbytes - 3))M',type='$pty',name="'"$label"'"\nsize=1M,type='$pty',name=UEFI_NTFS' | \
 	        sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	   fi
 	   sudo chmod o+rw /dev/$drive"2"
@@ -192,7 +215,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	   if   [[ $prtshm == "MBR" ]]; then
 	        echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive > /dev/null
 	   elif [[ $prtshm == "GPT" ]]; then
-	        echo 'size='$(($disk_length - 4096))',type='$pty',name="'"$label"'"' | \
+	        echo 'type='$pty',name="'"$label"'"' | \
 	        sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	   fi
 	fi

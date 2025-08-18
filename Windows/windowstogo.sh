@@ -24,6 +24,7 @@ system="$1"
 wimfile="$2"
 image="$3"
 drive="$4"
+mbyte=1048576
 biosmode="false"
 hivepath="Windows/System32/config/SYSTEM"
 winrepath="Windows/System32/Recovery/Winre.wim"
@@ -31,33 +32,60 @@ prodname=$(wiminfo "$wimfile" $image | grep -m 1 Name: | sed "s/^.*: *//" | awk 
 
 if [[ ! -z $(command -v ms-sys) ]]; then biosmode="true"; fi #Legacy bootable.
 
+endian () {
+v=$1
+i=${#v}
+
+while [ $i -gt 0 ]
+do
+    i=$[$i-2]
+    echo -n ${v:$i:2}
+done
+echo
+}
+
 if    [[ -e /dev/$drive && $system == "Darwin" ]]; then
       ignore_btn="osascript ../Support/click_ignore.scpt" #Ignore disk warnings.
+      devblksz=$(diskutil info $drive | grep 'Device Block Size:' | awk '{print $4}')
+      disk_size=$(diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-)
+      disk_mibsz=$(($disk_size / $mbyte)) #Disk space in whole MiBs
+      disk_blocks=$((($disk_mibsz * $mbyte) / $devblksz)) #Disk space in sectors
       bcdargs=("-f" "both" "/Volumes/UFD-Windows" "-s" "/Volumes/UFD-SYSTEM" "-n" "$prodname")
+      mibblksz=$(($mbyte / $devblksz))
+      syspartsz=$(($mibblksz * 350))
+      winpartsect=$(($mibblksz * 351))
       echo "Erase selected flash drive..."
       diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
       echo "Prepare disk and make bootable (sudo required)..."
       sudo chmod o+rw /dev/$drive
-      printf 'e 1\nc\n\n2048\n716800\nf 1\ne 2\n7\n\n\n\nq\n' | \
+      hds=$(fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f2 -d"/")
+      spt=$(fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f3 -d"/")
+      winpartsz=$(($disk_blocks - $winpartsect))
+      printf 'e 1\nc\n\n'$mibblksz'\n'$syspartsz'\nf 1\ne 2\n7\n\n\n'$winpartsz'\nq\n' | \
       fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
       Scripts/signmbr /dev/$drive > /dev/null && $ignore_btn &> /dev/null
-      sudo chmod o+rw /dev/$drive's1' /dev/$drive's2'
-      newfs_msdos -F 32 -v "UFD-SYSTEM" /dev/$drive's1' > /dev/null
       if [[ "$biosmode" == "true" ]]; then
          ms-sys -7 /dev/$drive > /dev/null && $ignore_btn &> /dev/null
+      fi
+      sudo chmod o+rw /dev/$drive's1' /dev/$drive's2'
+      newfs_msdos -u $spt -h $hds -F 32 -v "UFD-SYSTEM" /dev/$drive's1' > /dev/null
+      if [[ "$biosmode" == "true" ]]; then
          ms-sys -8 /dev/$drive's1' > /dev/null
       fi
       personality=$(diskutil listFilesystems | grep NTFS | awk '{print $1}')
       if   [[ $personality == "Tuxera" ]]; then
+           spthex=$(endian $(printf '%04X' $spt))
+           hdshex=$(endian $(printf '%04X' $hds))
            /usr/local/sbin/newfs_tuxera_ntfs -v "UFD-Windows" /dev/$drive's2' > /dev/null
-           echo "18: 3F00" | xxd -g 0 -r - /dev/$drive's2' #Set sectors per track to 63.
-           echo "1A: FF00" | xxd -g 0 -r - /dev/$drive's2' #Set number of heads to 255.
+           echo "18: $spthex" | xxd -g 0 -r - /dev/$drive's2' #Set sectors per track per fdisk.
+           echo "1A: $hdshex" | xxd -g 0 -r - /dev/$drive's2' #Set number of heads per fdisk.
       elif [[ $personality == "UFSD_NTFS" ]]; then
+           winparthex=$(endian $(printf '%08X' $winpartsect))
            ufsd_path="/Library/Filesystems/ufsd_NTFS.fs/Contents/Resources"
            $ufsd_path/mkntfs -win7 -f -v:"UFD-Windows" /dev/$drive's2' > /dev/null
-           echo "1C: 00F80A00" | xxd -g 0 -r - /dev/$drive's2' #Set start sector to 718,848.
+           echo "1C: $winparthex" | xxd -g 0 -r - /dev/$drive's2' #Set start sector to (351MiB) offset.
       else
-           mkntfs -Q -L "UFD-Windows" -p 718848 -H 255 -S 63 /dev/$drive's2' > /dev/null
+           mkntfs -Q -L "UFD-Windows" -p $winpartsect -H $hds -S $spt /dev/$drive's2' > /dev/null
       fi
       wimapply "$wimfile" $image /dev/$drive's2' 2> /tmp/wimfile_errors.txt
       if [[ ! $? -eq 0 ]]; then cat /tmp/wimfile_errors.txt; exit 1; fi
@@ -81,13 +109,15 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
       umount /dev/$drive?
       echo "Erase MBR/GPT structures (sudo required)..."
       sudo chmod o+rw /dev/$drive
+      devblksz=$(blockdev --getss /dev/$drive)
       disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
-      disk_offset=$(($disk_length - 4096))
+      mibblksz=$(($mbyte / $devblksz))
+      disk_offset=$(($disk_length - $mibblksz))
       dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
       dd if=/dev/zero of=/dev/$drive bs=1M seek=351 count=1 2> /dev/null
       dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
       echo "Prepare disk and make bootable..."
-      echo -e ',716800,c,*\n,,7' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+      echo -e ',350M,c,*\n,,7' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
       sudo chmod o+rw /dev/$drive"1"
       mkfs.fat -F 32 -n "UFD-SYSTEM" /dev/$drive"1" > /dev/null
       sudo chmod o+rw /dev/$drive"2"
