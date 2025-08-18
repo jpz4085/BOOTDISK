@@ -48,14 +48,17 @@ Linux Persistence
 The steps below are required to enable persistence on certain Linux distributions when creating the live
 media from macOS. The necessary file or folders must be created from the live environment the first time.
 
-Debian: Open a terminal and enter "lsblk -f" to identify the mount point of the persistence partition.
-        Change to the mount folder and enter the follow command to create the required config file.
-        echo "/ union" | sudo tee persistence.conf (This will make all changes persistent.)
+Debian:  Open a terminal and enter "lsblk -f" to identify the mount point of the persistence partition.
+         Change to the mount folder and enter the command below to create the required config file.
+         
+         echo "/ union" | sudo tee persistence.conf (This will make all changes persistent.)
         
-Fedora: Disregard the missing persistent overlay error which occurs during the first boot process.
-        Open a terminal and enter "lsblk -f" to identify the mount point of the persistence image file.
-        Change to the mount folder and enter the follow command to create the required overlay folders.
-        sudo mkdir -m 0755 --context=system_u:object_r:root_t:s0 overlayfs ovlwork
+Overlay: Disregard the missing persistent overlay error which occurs during the first boot process.
+         Open a terminal and enter "lsblk -f" to identify the mount point of the persistence image file.
+         Change to the mount folder and enter the command below to create the required overlay folders.
+         Note that the "--context" option is only required for Fedora.
+         
+         sudo mkdir -m 0755 --context=system_u:object_r:root_t:s0 overlayfs ovlwork
         
 Reboot and confirm that persistence is working as expected.
 
