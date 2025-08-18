@@ -441,12 +441,14 @@ echo "      Linux and Other Script      "
 echo "----------------------------------"
 wipedisk="false"
 ddmode="false"
+datapart="false"
 prtshm="CURRENT"
 pstpart="N/A"
 fstyp="N/A"
 volname="N/A"
-pstcompatlist="d-live|elementary|Ubuntu|Mint|Fedora|Pop_OS|Zorin|CDROM"
-ubtcompatlist="elementary|Ubuntu|Mint|Pop_OS|Zorin"
+fmtopts="FAT16/FAT32"
+ubtdistrolist="elementary|Ubuntu|Mint|Pop_OS|Zorin|neon"
+pstcompatlist="$ubtdistrolist|d-live|Fedora|CDROM|gentoo"
 read -p "Enter path to file: " image
 while [[ ! -f "$image" ]]; do
       echo -e "${RED}Unable to access image file. Try again.${NC}"
@@ -508,11 +510,19 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
              read -p "Enter partition scheme [GPT/MBR]: " prtshm
              prtshm=${prtshm^^}
        done
-       read -p "Enter file system [FAT16/FAT32]: " fstyp
+       if file "$image" | grep -qiE "MX-Live"; then
+          if   [[ "$system" == "Darwin" ]]; then
+               fmtopts+="/EXFAT"
+          elif [[ "$system" == "Linux" ]]; then
+               fmtopts+="/EXT4"
+          fi
+       fi
+       read -p "Enter file system [$fmtopts]: " fstyp
        fstyp=${fstyp^^}
-       while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
+       while [[ $fstyp != "FAT16" && $fstyp != "FAT32" && 
+                $fstyp != "EXT4" && $fstyp != "EXFAT" ]]; do
              echo -e "${RED}Invalid file system type. Try again.${NC}"
-             read -p "Enter file system [FAT16/FAT32]: " fstyp
+             read -p "Enter file system [$fmtopts]: " fstyp
              fstyp=${fstyp^^}
        done
        shopt -s extglob
@@ -563,10 +573,18 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
                        done
                        if [[ ! -z "$pstpartsz" && ${pstpartsz%?} != "0" && "$pstpartsz" != "MAX" ]]; then
                           pstpart="$pstpartsz"
+                          read -p "Would you like to create a data partition [Y/N]? " mkdataprt
+                          mkdataprt=${mkdataprt^^}
+                          while [[ $mkdataprt != "Y" && $mkdataprt != "N" ]]; do
+                                echo -e "${RED}Invalid entry. Try again.${NC}"
+                                read -p "Would you like to create a data partition [Y/N]? " mkdataprt
+                                mkdataprt=${mkdataprt^^}
+                          done
+                          if [[ $mkdataprt == "Y" ]]; then datapart="true"; fi
                        fi
                   fi
                fi
-          elif file "$image" | grep -qiE "$ubtcompatlist"; then
+          elif file "$image" | grep -qiE "$ubtdistrolist"; then
                read -p "Allow linux to use the remaining space for persistence [Y/N]? " enablepst
                enablepst=${enablepst^^}
                while [[ $enablepst != "Y" && $enablepst != "N" ]]; do
@@ -587,7 +605,7 @@ else
 fi
 
 echo
-(cd $resdir/Support; ./linuxotherdisk.sh $system "$image" "$target" $prtshm $pstpart $fstyp "$volname")
+(cd $resdir/Support; ./linuxotherdisk.sh $system "$image" "$target" $prtshm $pstpart $datapart $fstyp "$volname")
 }
 
 fido_title () {

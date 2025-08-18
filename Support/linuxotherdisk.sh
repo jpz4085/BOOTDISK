@@ -24,8 +24,9 @@ isofile="$2"
 drive="$3"
 prtshm="$4"
 pstpart="$5"
-fstyp="$6"
-label="$7"
+datapart="$6"
+fstyp="$7"
+label="$8"
 erase="false"
 persist="false"
 hasgrub="false"
@@ -39,12 +40,15 @@ mbyte=1048576
 gbyte=1073741824
 tbyte=1099511627776
 
+datapartsz=0
+
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT16" ]]; then pty=e; fi #FAT16 LBA
    if [[ $fstyp == "FAT32" ]]; then pty=c; fi #FAT32 LBA
+   if [[ $fstyp == "EXFAT" ]]; then pty=7; fi #NTFS/exFAT
    erase="true"
 fi
 if [[ $prtshm == "GPT" ]]; then
@@ -62,17 +66,24 @@ isolabel=$(file "$isofile" | awk -F"'" '{for (i=2; i<=NF; i+=2) print $i}')
 
 if [[ "$pstpart" != "N/A" ]]; then
    persist="true"
+   mkexfat="false"
    extlabel="writable"
    linuxpty="0FC63DAF-8483-4772-8E79-3D69D8477DE4" #Linux filesystem
    isoextsz=$(7z l "$isofile" | grep 'files,' | awk '{print $3}') #Size of ISO contents.
    if echo "$isolabel" | grep -qiE "d-live"; then extlabel="persistence"; fi
    if echo "$isolabel" | grep -qiE "CDROM"; then pupsave="true"; fi
+   if [[ "$datapart" == "true" && ! -z $(command -v mkfs.exfat) ]]; then mkexfat="true"; fi
 fi
 
-if echo "$isolabel" | grep -qiE "Fedora"; then
+if echo "$isolabel" | grep -qiE "Fedora|gentoo"; then
    label=$(echo "$label" | sed 's/ /-/') #Replace spaces with dashes.
    usblabel="true" #Update volume label in GRUB arguments.
    if [[ "$persist" == "true" ]]; then overlay="true"; fi #Create a persistent overlay image.
+fi
+
+if echo "$isolabel" | grep -qiE "MX-Live"; then
+   efigrubcfg="boot/grub/config/efi-grub.cfg"
+   efigrubmod="boot/grub/x86_64-efi/exfat.mod"
 fi
 
 unit_sizes () {
@@ -86,7 +97,7 @@ case "${unitsz: -1}" in
       M)
       baseunit=$mbyte
       errunit=$baseunit
-      errsym="K"
+      errsym="M"
       ;;
       G)
       baseunit=$gbyte
@@ -110,7 +121,12 @@ exit 0
 
 extract_files () {
 echo "Extract files to disk..."
-7z x "$1" -y -o"$2" > /dev/null
+if   [[ $fstyp == "EXT4" ]] ; then
+     sudo 7z x "$1" -y -xr\!\[BOOT\] -o"$2" > /dev/null
+     sync
+else
+     7z x "$1" -y -xr\!\[BOOT\] -o"$2" > /dev/null
+fi
 }
 
 config_persist () {
@@ -120,7 +136,7 @@ pstarg="persistent"
 pstname="$pstarg"
 pstconf="false"
 configs=()
-schterms=("/casper/vmlinuz" "/live/vmlinuz" "boot=casper" "rd.live.image")
+schterms=("/casper/vmlinuz" "/live/vmlinuz" "boot=casper" "rd.live.image" "rd.live.squashimg")
 
 while [[ -z "${configs[@]}" ]]; do
       readarray -t configs <<< $(grep -r -m 1 --exclude-dir='.*' --include=\*.cfg "${schterms[$i]}" "$1" | awk -F: '{print $1}')
@@ -130,10 +146,11 @@ while [[ -z "${configs[@]}" ]]; do
               pstname="$pstarg"
               if [[ $system == "Linux" ]]; then pstconf="true"; fi
               if [[ $system == "Darwin" ]]; then pstconf="alert"; fi
-         elif [[ "${schterms[$i]}" == "rd.live.image" ]]; then
-              pstarg="rd.live.overlay=LABEL=$extlabel:fedora-live.img"
+         elif [[ "${schterms[$i]}" == "rd.live."* ]]; then
+              pstarg="rd.live.overlay=LABEL=$extlabel:persistence.img"
               pstname="rd.live.overlay"
          fi
+         break
       fi
       ((i++)) #Next search term
 done
@@ -141,9 +158,9 @@ done
 for key in "${!configs[@]}"
 do
     if   [[ $overlay == "true" ]]; then
-         lnum_vmlz=$(grep -nwi -m 1 "${configs[$key]}" -e 'rd.live.image' | awk -F: '{print $1}')
+         lnum_vmlz=$(grep -nwi -m 1 "${configs[$key]}" -e "${schterms[$i]}" | awk -F: '{print $1}')
     else
-	     lnum_vmlz=$(grep -nwi -m 1 "${configs[$key]}" -e 'vmlinuz' | awk -F: '{print $1}')
+         lnum_vmlz=$(grep -nwi -m 1 "${configs[$key]}" -e 'vmlinuz' | awk -F: '{print $1}')
     fi
     lnum_appnd=$(grep -nwi -m 1 "${configs[$key]}" -e 'append' | awk -F: '{print $1}')
     if   [[ ! -z "$lnum_appnd" ]]; then
@@ -177,12 +194,12 @@ if [[ $overlay == "true" ]]; then
         volfreeblks=$(($volfreebytes / $mbyte))
    fi
    echo "Creating persistent overlay image..."
-   sudo dd if=/dev/zero of="$2"/fedora-live.img bs="$3" count=$volfreeblks status=none
+   sudo dd if=/dev/zero of="$2"/persistence.img bs="$3" count=$volfreeblks status=none
    echo "Formatting persistent overlay image..."
-   sudo mkfs.ext4 -q -L persistence "$2"/fedora-live.img > /dev/null
+   sudo mkfs.ext4 -q -L persistence "$2"/persistence.img > /dev/null
    if   [[ $system == "Linux" ]]; then
         echo "Creating folders on the persistent image..."
-        imgblkdev=$(sudo losetup --find --show "$2"/fedora-live.img)
+        imgblkdev=$(sudo losetup --find --show "$2"/persistence.img)
         sleep 3 && gio mount -d "$imgblkdev"
         overlay_folder="/media/$USER/persistence/overlayfs"
         ovlwork_folder="/media/$USER/persistence/ovlwork"
@@ -191,9 +208,13 @@ if [[ $overlay == "true" ]]; then
         umount "$imgblkdev" && sudo losetup -d "$imgblkdev"
    elif [[ $system == "Darwin" ]]; then
         echo -e "${YELLOW}Create the required folders on the persistent image.${NC}"
-        echo -e "${YELLOW}See the Fedora section of the About menu for details.${NC}"
+        echo -e "${YELLOW}See the overlay section of the About menu for details.${NC}"
    fi
 fi
+}
+
+get_syslinux_path () {
+echo $(find "$1" -type d -name "$2" 2>&1 | grep -vE "Permission denied|Operation not permitted")
 }
 
 rename_isolinux () {
@@ -205,7 +226,14 @@ fi
 }
 
 update_cdlabel () {
-config=$(grep -r -m 1 --exclude-dir='.*' --include=\grub.cfg 'rd.live.image' "$1" | awk -F: '{print $1}')
+i=0
+config=""
+schterms=("rd.live.image" "rd.live.squashimg")
+
+while [[ -z "$config" ]]; do
+      config=$(grep -r -m 1 --exclude-dir='.*' --include=\grub.cfg "${schterms[$i]}" "$1" | awk -F: '{print $1}')
+      ((i++)) #Next search term
+done
 echo "Update $(basename "$config") with new volume label..."
 if   [[ $system == "Darwin" ]]; then
      sed -i '' "s/default=\"1\"/default=\"0\"/" "$config"
@@ -216,14 +244,44 @@ elif [[ $system == "Linux" ]]; then
 fi
 }
 
+mkgrubefi () {
+echo "Move grub boot folders to EFI..."
+if   [[ $fstyp == "EXT4" ]] ; then
+     cp -pr "$1"/EFI "$2" && sudo rm -r "$1"/EFI
+     mkdir -p "$2"/boot/grub
+     cp "$1"/"$efigrubcfg" "$2"/boot/grub/grub.cfg
+     vsn=$(lsblk -o UUID /dev/$drive"$isopart" | awk 'NR==2')
+     idfile="$(uuidgen).id"
+     sudo touch "$1/$idfile"
+     sed -i 's/main_uuid="%UUID%"/main_uuid="'$vsn'"/' "$2"/boot/grub/grub.cfg
+     sed -i 's/id_file="%ID_FILE%"/id_file="\/'$idfile'"/' "$2"/boot/grub/grub.cfg
+elif 
+     [[ $fstyp == "EXFAT" ]] ; then
+     mv "$1"/EFI "$2"
+     mkdir -p "$2"/boot/grub/x86_64-efi
+     cp "$1"/"$efigrubcfg" "$2"/boot/grub/grub.cfg
+     cp "$1"/"$efigrubmod" "$2"/boot/grub/x86_64-efi
+     vsn=$(echo "${vsnbytes:0:${#vsnbytes}/2}-${vsnbytes:${#vsnbytes}/2}")
+     idfile="$(uuidgen).id"
+     touch "$1/$idfile"
+     sed -i '' 's/main_uuid="%UUID%"/main_uuid="'$vsn'"/' "$2"/boot/grub/grub.cfg
+     sed -i '' 's/id_file="%ID_FILE%"/id_file="\/'$idfile'"/' "$2"/boot/grub/grub.cfg
+     sed -i '' '/id_file/a\'$'\ninsmod exfat'$'\n' "$2"/boot/grub/grub.cfg
+     sed -i '' '/id_file/a\'$'\n'$'\n' "$2"/boot/grub/grub.cfg
+fi
+}
+
 # Verify selected drive is valid and run actions.
 
 if    [[ $erase == "true" && -e /dev/$drive ]]; then
       if [[ $system == "Darwin" ]]; then
+         have_sgdisk="false"
+         if [[ ! -z $(command -v sgdisk) ]]; then have_sgdisk="true"; fi
          ignore_btn="osascript ./click_ignore.scpt" #Close macOS disk warning dialogue.
          devblksz=$(diskutil info $drive | grep 'Device Block Size:' | awk '{print $4}')
          disk_length=$(diskutil info $drive | grep "Disk Size:" | awk '{print $8}')
          disk_size=$(diskutil info $drive | grep "Disk Size:" | awk '{print $5}' | cut -c2-)
+         mibblksz=$(($mbyte / $devblksz))
          if [[ $fstyp == "FAT16" && $disk_size -ge $(($gbyte * 2)) ]]; then
             echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
             echo
@@ -231,20 +289,28 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
             exit 1
          fi
          if [[ "$persist" == "true" ]]; then
-            isoblksz=$(stat -f %b "$isofile")
             isobytesz=$(stat -f %z "$isofile")
             if [[ $isoextsz -gt $isobytesz ]]; then
-               isobytesz=$isoextsz
-               isoblksz=$(($isoextsz / $devblksz))
+               isobytesz=$isoextsz                        #Use extracted size if larger
             fi
-            isomibsz=$(($isobytesz / $mbyte))
-            isoblkpad=$((($mbyte * 50) / $devblksz))
-            isomibpad=$((($mbyte * 50) / $mbyte))
+            isomibsz=$(($isobytesz / $mbyte))             #ISO size in whole MiBs
+            isopartmib=$(($isomibsz + 50))                #ISO partition with padding
+            isoblksz=$((($isomibsz * $mbyte) / devblksz)) #ISO size in sectors
+            isoblkpad=$((($mbyte * 50) / $devblksz))      #50MiBs padding in sectors
+            isopartblk=$(($isoblksz + $isoblkpad))         #ISO partition in sectors
             if [[ "$pstpart" != "deferred" && "$pstpart" != "END" ]]; then
                unit_sizes "$pstpart"
                lnxpartszbytes=$((${pstpart%?} * $baseunit))
                lnxpartlenblks=$(($lnxpartszbytes / $devblksz))
-               usedbytes=$(($isobytesz + ($mbyte * 50)))
+               if   [[ $prtshm == "GPT" && "$have_sgdisk" == "true" ]]; then
+                    isopart_offset=$(($kbyte * 20))
+               else
+                    isopart_offset=$mbyte
+               fi
+               usedbytes=$((($isopartmib * $mbyte) + $isopart_offset)) #ISO partition and offset
+               if [[ $hasgrub == "true" ]]; then
+                  usedbytes=$(($usedbytes + $mbyte)) #BIOS Boot Partition
+               fi
                freebytes=$(($disk_size - $usedbytes))
                if [[ $lnxpartszbytes -ge $freebytes ]]; then
                   available=$(($freebytes / $errunit))
@@ -254,10 +320,28 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                   read -p "Press any key to continue... " -n1 -s
                   exit 1
                fi
+               if [[ "$datapart" == "true" ]]; then
+                  databytes=$(($freebytes - $lnxpartszbytes))
+                  if   [[ $databytes -gt $mbyte ]]; then
+                       datapartsz=$(($databytes / $mbyte))                 #Free space in whole MiBs
+                       datapartlen=$((($datapartsz * $mbyte) / $devblksz)) #Free space in sectors
+                       if   [[ $databytes -gt $(($gbyte * 4)) ]]; then
+                            datapty=7; datafs="EXFAT"
+                       elif [[ $databytes -gt $(($mbyte * 500)) ]]; then
+                            datapty=c; datafs="FAT32"
+                       else
+                            datapty=e; datafs="FAT16"
+                       fi
+                  else
+                       echo -e "${YELLOW}Insufficient space remaining for data partition.${NC}"
+                       echo
+                       read -p "Press any key to continue... " -n1 -s
+                       exit 1
+                  fi
+               fi
             fi
          fi
          if [[ $prtshm == "ERASE" ]]; then
-            mibblksz=$(($mbyte / $devblksz))
             disk_offset=$(($disk_length - $mibblksz))
             echo "Unmount volumes..."
             diskutil unmountDisk $drive > /dev/null
@@ -271,31 +355,46 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
          hds=$(sudo fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f2 -d"/")
          spt=$(sudo fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f3 -d"/")
          if   [[ $prtshm == "MBR" ]]; then
+              disk_mbytes=$(($disk_size / $mbyte))                 #Disk space in whole MiBs
+              disk_blocks=$((($disk_mbytes * $mbyte) / $devblksz)) #Disk space in sectors
               diskutil eraseDisk "Free Space" %noformat% MBR $drive > /dev/null
               sudo chmod o+rw /dev/$drive
               if   [[ "$persist" == "true" ]]; then
-                   if   [[ "$pstpart" == "deferred" ]]; then
-                        printf 'e 1\n'$pty'\n\n\n'$(($isoblksz + $isoblkpad))'\nf 1\nq\n' | \
-                        fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
-                   else
-                        lnxpartlenblks+="\n"
-                        if [[ "$overlay" == "true" ]]; then pstprtyp=7; else pstprtyp=83; fi
-                        printf 'e 1\n'$pty'\n\n\n'$(($isoblksz + $isoblkpad))'\nf 1\ne 2\n'$pstprtyp'\n\n\n'$lnxpartlenblks'q\n' | \
-                        fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
+                   partnum=1
+                   fdargs=("e $partnum" "$pty" "" "$mibblksz" "$isopartblk" "f 1")
+                   if [[ "$pstpart" != "deferred" ]]; then
+                      partnum=$(($partnum + 1))
+                      if [[ "$overlay" == "true" ]]; then pstprtyp=7; else pstprtyp=83; fi
+                      if [[ "$pstpart" == "END" ]]; then
+                         lnxpartlenblks="$(($disk_blocks - ($mibblksz + $isopartblk)))"
+                      fi
+                      fdargs+=("e $partnum" "$pstprtyp" "" "" "$lnxpartlenblks")
                    fi
+                   if [[ $datapartsz != "0"  ]]; then
+                      partnum=$(($partnum + 1))
+                      fdargs+=("e $partnum" "$datapty" "" "" "$datapartlen")
+                   fi
+                   fdargs+=("q")
+                   printf "%s\n" "${fdargs[@]}" | fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
+              elif [[ $pty == "7" ]]; then
+                   efiblksz=$((($mbyte * 50) / $devblksz))
+                   isopartsz=$(($disk_blocks - ($mibblksz + $efiblksz)))
+                   printf 'e 1\nb\n\n'$mibblksz'\n'$efiblksz'\ne 2\n'$pty'\n\n\n'$isopartsz'\nf 2\nq\n' | \
+                   fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
               else
-                   printf 'e 1\n'$pty'\n\n\n\nf 1\nq\n' | fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
+                   isopartsz=$(($disk_blocks - $mibblksz))
+                   printf 'e 1\n'$pty'\n\n'$mibblksz'\n'$isopartsz'\nf 1\nq\n' | \
+                   fdisk -y -e /dev/$drive &> /dev/null && $ignore_btn &> /dev/null
               fi
          elif [[ $prtshm == "GPT" ]]; then
-              if   [[ ! -z $(command -v sgdisk) ]]; then
+              if   [[ "$have_sgdisk" == "true" ]]; then
                    diskutil eraseDisk -noEFI "Free Space" %noformat% GPT $drive > /dev/null
                    sudo chmod o+rw /dev/$drive
-                   sgdisk -o /dev/$drive > /dev/null 2>&1
                    if [[ $hasgrub == "true" ]]; then
                       sgdisk -n 0:0:+1M -t '0:EF02' -c 0:"GRUB BIOS" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
                    fi
                    if   [[ "$persist" == "true" ]]; then
-                        sgdisk -n 0:0:$(($isoblksz + $isoblkpad)) -t '0:0700' -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+                        sgdisk -n '0:0:+'$isopartmib'M' -t '0:0700' -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
                         if [[ "$pstpart" != "deferred" ]]; then
                            if   [[ $pstpart == "END" ]]; then
                                 pstpartblks="0"
@@ -303,32 +402,49 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                                 pstpartblks="+$pstpart"
                            fi
                            if [[ "$overlay" == "true" ]]; then pstprtyp="0700"; else pstprtyp="8300"; fi
-                           sgdisk -n 0:0:$pstpartblks -t 0:$pstprtyp -c 0:$extlabel /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+                           sgdisk -I -n '0:0:'$pstpartblks -t 0:$pstprtyp -c 0:$extlabel /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
                         fi
+                        if [[ $datapartsz != "0"  ]]; then
+                           sgdisk -I -n 0:0:0 -t '0:0700' -c 0:"STORAGE" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+                        fi
+                   elif [[ $fstyp == "EXFAT" ]]; then
+                        sgdisk -n 0:0:+50M -t '0:0700' -c 0:"GRUB UEFI" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+                        sgdisk -I -n 0:0:0 -t '0:0700' -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
                    else
-                        sgdisk -n 0:0:0 -t '0:0700' -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
+                        sgdisk -I -n 0:0:0 -t '0:0700' -c 0:"$label" /dev/$drive > /dev/null 2>&1 && $ignore_btn &> /dev/null
                    fi
               else
+                   parts=0
                    if [[ $hasgrub == "true" ]]; then
+                      parts=$(($parts + 1))
                       diskargs=(%$biospty% %noformat% 1MiB )
                    fi
                    if   [[ "$persist" == "true" ]]; then
-                        diskargs+=(%$pty% %noformat% $(($isomibsz + $isomibpad))MiB )
-                        if   [[ "$pstpart" == "deferred" ]]; then
-                             diskargs+=("Free Space" %noformat% R)
-                             diskutil partitionDisk -noEFI $drive 3 GPT "${diskargs[@]}" > /dev/null
-                        else
-                             if   [[ $pstpart == "END" ]]; then
-                                  if [[ "$overlay" == "true" ]]; then pstprtyp="$pty"; else pstprtyp="$linuxpty"; fi
-                                  diskargs+=(%$pstprtyp% %noformat% R)
-                                  diskutil partitionDisk -noEFI $drive 3 GPT "${diskargs[@]}" > /dev/null
-                             else
-                                  if [[ "$overlay" == "true" ]]; then pstprtyp="$pty"; else pstprtyp="$linuxpty"; fi
-                                  diskargs+=(%$pstprtyp% %noformat% $pstpart )
-                                  diskargs+=("Free Space" %noformat% R)
-                                  diskutil partitionDisk -noEFI $drive 4 GPT "${diskargs[@]}" > /dev/null
-                             fi
+                        parts=$(($parts + 1))
+                        diskargs+=(%$pty% %noformat% $isopartmib'MiB' )
+                        if [[ "$pstpart" != "deferred" ]]; then
+                           if   [[ $pstpart == "END" ]]; then
+                                parts=$(($parts + 1))
+                                if [[ "$overlay" == "true" ]]; then pstprtyp="$pty"; else pstprtyp="$linuxpty"; fi
+                                diskargs+=(%$pstprtyp% %noformat% R)
+                           else
+                                if [[ "$overlay" == "true" ]]; then pstprtyp="$pty"; else pstprtyp="$linuxpty"; fi
+                                parts=$(($parts + 1))
+                                diskargs+=(%$pstprtyp% %noformat% $pstpart)
+                           fi
                         fi
+                        if   [[ $datapartsz != "0"  ]]; then
+                             parts=$(($parts + 1))
+                             diskargs+=( %$pty% %noformat% R)
+                        elif [[ $pstpart != "END" ]]; then
+                             parts=$(($parts + 1))
+                             diskargs+=( "Free Space" %noformat% R)
+                        fi
+                        diskutil partitionDisk -noEFI $drive $parts GPT "${diskargs[@]}" > /dev/null
+                   elif [[ $fstyp == "EXFAT" ]]; then
+                        parts=$(($parts + 2))
+                        diskargs+=(%$pty% %noformat% 50M %$pty% %noformat% R)
+                        diskutil partitionDisk -noEFI $drive $parts GPT "${diskargs[@]}" > /dev/null
                    else
                         if   [[ $hasgrub == "true" ]]; then
                              diskargs+=(%$pty% %noformat% R)
@@ -339,31 +455,75 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                    fi
               fi
          fi
-         if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
-         sudo newfs_msdos -u $spt -h $hds -F $fatsz -v "$label" /dev/$drive's'$isopart > /dev/null
+         if   [[ $fstyp == "FAT16" || $fstyp == "FAT32" ]]; then
+              if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
+              sudo newfs_msdos -u $spt -h $hds -F $fatsz -v "$label" /dev/$drive's'$isopart > /dev/null
+         elif [[ $fstyp == "EXFAT" ]]; then
+              if [[ $hasgrub == "true" ]]; then efipart=2; else efipart=1; fi
+              if [[ $hasgrub == "true" ]]; then isopart=3; else isopart=2; fi
+                 sudo newfs_msdos -u $spt -h $hds -F 32 -v GRUB /dev/$drive's'$efipart > /dev/null
+                 sudo newfs_exfat -v $label /dev/$drive's'$isopart > /dev/null
+                 vsnbytes=$(sudo dd if=/dev/$drive's'$isopart skip=100 bs=1 count=4 2>/dev/null | hexdump -e '4/4 "%X"')
+         fi
          if [[ "$persist" == "true" ]]; then
             if [[ $hasgrub == "true" ]]; then extpart=3; else extpart=2; fi
             if   [[ "$overlay" == "true" ]]; then
                  sudo newfs_exfat -v $extlabel /dev/$drive's'$extpart > /dev/null
             else
                  sudo mkfs.ext4 -q -L $extlabel /dev/$drive's'$extpart > /dev/null
-           fi
+            fi
+            if [[ $datapartsz != "0"  ]]; then
+               if [[ $hasgrub == "true" ]]; then fatpart=4; else fatpart=3; fi
+               if   [[ "$datafs" == "FAT16" || "$datafs" == "FAT32" ]]; then
+                    sudo newfs_msdos -u $spt -h $hds -F ${datafs:3} -v DATA /dev/$drive's'$fatpart > /dev/null
+               elif [[ "$datafs" == "EXFAT" ]]; then
+                    sudo newfs_exfat -v DATA /dev/$drive's'$fatpart > /dev/null
+               fi
+            fi
          fi
          echo "Mount boot disk..."
-         if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
+         if [[ $fstyp == "EXFAT" ]]; then
+            diskutil mount $drive's'$efipart > /dev/null
+         fi
          diskutil mount $drive's'$isopart > /dev/null
          if [[ "$overlay" == "true" ]]; then
             if [[ $hasgrub == "true" ]]; then extpart=3; else extpart=2; fi
             diskutil mount $drive's'$extpart > /dev/null
          fi
+         if [[ $datapartsz != "0"  ]]; then
+            diskutil mount $drive's'$fatpart > /dev/null
+         fi
          echo "Disable Spotlight indexing..."
          mdutil -d /Volumes/"$label" &> /dev/null
+         if [[ $fstyp == "EXFAT" ]]; then
+            mdutil -d /Volumes/GRUB &> /dev/null
+         fi
          if [[ "$overlay" == "true" ]]; then
             mdutil -d /Volumes/"$extlabel" &> /dev/null
          fi
+         if [[ $datapartsz != "0"  ]]; then
+            mdutil -d /Volumes/DATA &> /dev/null
+         fi
          extract_files "$isofile" /Volumes/"$label"
-         if [[ -d /Volumes/"$label"/isolinux ]]; then
-            rename_isolinux /Volumes/"$label"
+         isolinuxdir=$(get_syslinux_path /Volumes/"$label" isolinux)
+         syslinuxdir=$(get_syslinux_path /Volumes/"$label" syslinux)
+         if   [[ ! -z "$isolinuxdir" && ! -z "$syslinuxdir" ]]; then
+              if [[ $fstyp == "EXFAT" ]]; then
+                 echo "Remove unneeded syslinux files..."
+                 rm -r "$syslinuxdir"
+              fi
+              echo "Remove unneeded isolinux files..."
+              rm -r "$isolinuxdir"
+         elif [[ ! -z "$isolinuxdir" && -z "$syslinuxdir" ]]; then
+              if   [[ $fstyp == "EXFAT" ]]; then
+                   echo "Remove unneeded isolinux files..."
+                   rm -r "$syslinuxdir"
+              else
+                   rename_isolinux "$(dirname "$isolinuxdir")"
+              fi
+         fi
+         if [[ $fstyp == "EXFAT" && -f /Volumes/"$label"/"$efigrubcfg" ]]; then
+            mkgrubefi /Volumes/"$label" /Volumes/GRUB
          fi
          if [[ "$usblabel" == "true" ]]; then
             update_cdlabel /Volumes/"$label"
@@ -380,7 +540,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                  cd /Volumes/"$label"
                  rm md5sum.txt
                  echo "Create new md5sum.txt file..."
-                 find . -type f -not -name 'md5sum.txt' -not -path "./\[BOOT\]*" -exec md5sum '{}' \; 2> /dev/null > md5sum.txt
+                 find . -type f -not -name 'md5sum.txt' -exec md5sum '{}' \; 2> /dev/null > md5sum.txt
             elif grep -q "isolinux" /Volumes/"$label"/md5sum.txt; then
                  echo "Update md5sum.txt file..."
                  sed -i '' 's/isolinux/syslinux/g' /Volumes/"$label"/md5sum.txt
@@ -395,8 +555,6 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
           devblksz=$(blockdev --getss /dev/$drive)
           disk_size=$(blockdev --getsize64 /dev/$drive)
           disk_length=$(sfdisk -l /dev/$drive 2> /dev/null | grep "Disk /dev/$drive:" | awk '{print $7}')
-          mibblksz=$(($mbyte / $devblksz))
-          disk_offset=$(($disk_length - $mibblksz))
 	  
 	  if [[ $fstyp == "FAT16" && $disk_size -ge $(($gbyte * 2)) ]]; then
 	     echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
@@ -406,18 +564,20 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 
 	  if [[ "$persist" == "true" ]]; then
-	     isoblksz=$(stat -c %b "$isofile")
 	     isobytesz=$(stat -c %s "$isofile")
 	     if [[ $isoextsz -gt $isobytesz ]]; then
 	       isobytesz=$isoextsz
-	       isoblksz=$(($isoextsz / $devblksz))
 	     fi
-	     isoblkpad=$((($mbyte * 50) / $devblksz))
+	     isomibsz=$(($isobytesz / $mbyte))     #ISO size in whole MiBs
+	     isopartsz=$(($isomibsz + 50))         #ISO partition with padding
+	     isopartbytes=$(($isopartsz * $mbyte)) #ISO partition in bytes
 	     if [[ "$pstpart" != "+" ]]; then
                 unit_sizes "$pstpart"
                 lnxpartszbytes=$((${pstpart%?} * $baseunit))
-                lnxpartlenblks=$(($lnxpartszbytes / $devblksz))
-                usedbytes=$(($isobytesz + ($mbyte * 50)))
+                usedbytes=$(($isopartbytes + $mbyte)) #ISO partition and offset
+                if [[ $hasgrub == "true" ]]; then
+                   usedbytes=$(($usedbytes + $mbyte)) #BIOS Boot Partition
+                fi
                 freebytes=$(($disk_size - $usedbytes))
                 if [[ $lnxpartszbytes -ge $freebytes ]]; then
                    available=$(($freebytes / $errunit))
@@ -427,12 +587,32 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                    read -p "Press any key to continue... " -n1 -s
                    exit 1
                 fi
+                if [[ "$datapart" == "true" ]]; then
+                   databytes=$(($freebytes - $lnxpartszbytes))
+                   if   [[ $databytes -gt $mbyte ]]; then
+                        datapartsz=$(($databytes / $mbyte))
+                        if   [[ $databytes -gt $(($gbyte * 4)) && "$mkexfat" == "true" ]]; then
+                             datapty=7; datafs="EXFAT"
+                        elif [[ $databytes -gt $(($mbyte * 500)) ]]; then
+                             datapty=c; datafs="FAT32"
+                        else
+                             datapty=e; datafs="FAT16"
+                        fi
+                   else
+                        echo -e "${YELLOW}Insufficient space remaining for data partition.${NC}"
+                        echo
+                        read -p "Press any key to continue... " -n1 -s
+                        exit 1
+                   fi
+                fi
              fi
 	  fi
 
 	  echo "Unmount volumes..."
 	  umount /dev/$drive?
 	  echo "Erase MBR/GPT structures..."
+          mibblksz=$(($mbyte / $devblksz))
+          disk_offset=$(($disk_length - $mibblksz))
 	  dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
 	  dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	  if   [[ $prtshm == "ERASE" ]]; then
@@ -441,8 +621,11 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  echo "Partition and format disk..."
 	  if   [[ $prtshm == "MBR" ]]; then
 	       if   [[ "$persist" == "true" ]]; then
-	            echo -e ','$(($isoblksz + $isoblkpad))','$pty',*\n,'$pstpart',L' | \
-	            sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	            sfdargs=(,$isopartsz'M',$pty,*\\n,$pstpart,L)
+	            if [[ $datapartsz != "0"  ]]; then sfdargs+=(\\n,$datapartsz'M',$datapty); fi
+	            echo -e "${sfdargs[@]}" | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	       elif [[ $fstyp == "EXT4" ]]; then
+	            echo -e ',50M,b\n,,L,*' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
 	       else
 	            echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
 	       fi
@@ -451,30 +634,62 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	          sfdargs=(size=1M,type=$biospty,name='"'GRUB BIOS'"'\\n)
 	       fi
 	       if   [[ "$persist" == "true" ]]; then
-	            sfdargs+=(size=$(($isoblksz + $isoblkpad)),type=$pty,name='"'$label'"'\\n)
+	            sfdargs+=(size=$isopartsz'M',type=$pty,name='"'$label'"'\\n)
 	            sfdargs+=(size=$pstpart,type=L,name='"'$extlabel'"')
+	            if [[ $datapartsz != "0"  ]]; then sfdargs+=(\\ntype=$pty,name='"'STORAGE'"'); fi
+	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+	       elif [[ $fstyp == "EXT4" ]]; then
+	            sfdargs+=(size=50M,type=$pty,name='"'GRUB UEFI'"'\\n)
+	            sfdargs+=(type=L,name='"'$label'"')
 	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	       else
 	            sfdargs+=(type=$pty,name='"'$label'"')
 	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	       fi
 	  fi
-	  if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
-	  sudo mkfs.fat -F $fatsz -n "$label" /dev/$drive"$isopart" > /dev/null
+	  if   [[ $fstyp == "EXT4" ]] ; then
+	       if [[ $hasgrub == "true" ]]; then isopart=3; else isopart=2; fi
+	       sudo mkfs.ext4 -q -L "$label" /dev/$drive"$isopart" > /dev/null
+	       if [[ $hasgrub == "true" ]]; then efipart=2; else efipart=1; fi
+	       sudo mkfs.fat -F 32 -n GRUB /dev/$drive"$efipart" > /dev/null
+	  else
+	       if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
+	       sudo mkfs.fat -F $fatsz -n "$label" /dev/$drive"$isopart" > /dev/null
+	  fi
 	  if [[ "$persist" == "true" ]]; then
 	     if [[ $hasgrub == "true" ]]; then extpart=3; else extpart=2; fi
 	     sudo mkfs.ext4 -q -L "$extlabel" /dev/$drive"$extpart" > /dev/null
+	     if [[ $datapartsz != "0" ]]; then
+	        if [[ $hasgrub == "true" ]]; then fatpart=4; else fatpart=3; fi
+	        if   [[ "$datafs" == "FAT16" || "$datafs" == "FAT32" ]]; then
+	             sudo mkfs.fat -F ${datafs:3} -n DATA /dev/$drive"$fatpart" > /dev/null
+	        elif [[ "$datafs" == "EXFAT" ]]; then
+	             sudo mkfs.exfat -L DATA /dev/$drive"$fatpart" > /dev/null
+	        fi
+	     fi
 	  fi
 	  echo "Mount boot disk..." && sleep 1
-	  if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
+	  if [[ $fstyp == "EXT4" ]] ; then
+	     gio mount -d /dev/$drive"$efipart"
+	  fi
 	  gio mount -d /dev/$drive"$isopart"
 	  if [[ "$persist" == "true" ]]; then
-	     if [[ $hasgrub == "true" ]]; then extpart=3; else extpart=2; fi
 	     gio mount -d /dev/$drive"$extpart"
+	     if [[ $datapartsz != "0"  ]]; then
+	        gio mount -d /dev/$drive"$fatpart"
+	     fi
 	  fi
 	  extract_files "$isofile" /media/$USER/"$label"
-	  if [[ -d /media/$USER/"$label"/isolinux ]]; then
-	     rename_isolinux /media/$USER/"$label"
+	  isolinuxdir=$(get_syslinux_path /media/$USER/"$label" isolinux)
+	  syslinuxdir=$(get_syslinux_path /media/$USER/"$label" syslinux)
+	  if   [[ ! -z "$isolinuxdir" && ! -z "$syslinuxdir" ]]; then
+	       echo "Remove unneeded isolinux files..."
+	       sudo rm -r "$isolinuxdir"
+	  elif [[ ! -z "$isolinuxdir" && -z "$syslinuxdir" ]]; then
+	       rename_isolinux "$(dirname "$isolinuxdir")"
+	  fi
+	  if [[ $fstyp == "EXT4" && -f /media/$USER/"$label"/"$efigrubcfg" ]]; then
+	     mkgrubefi /media/$USER/"$label" /media/$USER/GRUB
 	  fi
 	  if [[ "$usblabel" == "true" ]]; then
 	     update_cdlabel /media/$USER/"$label"
@@ -491,7 +706,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	          cd /media/$USER/"$label"
 	          rm md5sum.txt
 	          echo "Create new md5sum.txt file..."
-	          find -type f -not -name 'md5sum.txt' -not -path "./\[BOOT\]*" -exec md5sum '{}' \; > md5sum.txt
+	          find -type f -not -name 'md5sum.txt' -exec md5sum '{}' \; > md5sum.txt
 	     elif grep -q "isolinux" /media/$USER/"$label"/md5sum.txt; then
 	          echo "Update md5sum.txt file..."
 	          sed -i 's/isolinux/syslinux/g' /media/$USER/"$label"/md5sum.txt
