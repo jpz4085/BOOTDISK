@@ -45,6 +45,11 @@ mandatory Microsoft account screen and bypass hardware requirements (TPM/Secure 
 Linux Persistence
 =================
 
+Specify the size of the persistence partition with a suffix of M/G/T (ex. 2048M) or as just 'max' to use
+all remaining space on the media. Enter nothing or a size of zero (ex. 0M) to disable persistence.
+
+The script will also offer to create a data/storage partition from any remaining space if desired.
+
 The steps below are required to enable persistence on certain Linux distributions when creating the live
 media from macOS. The necessary file or folders must be created from the live environment the first time.
 
