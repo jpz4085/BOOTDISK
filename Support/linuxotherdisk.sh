@@ -271,6 +271,26 @@ elif
 fi
 }
 
+checksum_files () {
+if   [[ "$persist" == "true" ]]; then
+     cd "$1"
+     rm "$2.txt"
+     echo "Create new $2.txt file..."
+     if   [[ $system == "Darwin" ]]; then
+          find . -type f -not -name "$2.txt" -not -name "$3.txt" -exec $2 '{}' \; 2> /dev/null > "$2.txt"
+     elif [[ $system == "Linux" ]]; then
+          find -type f -not -name "$2.txt" -not -name "$3.txt" -exec $2 '{}' \; > "$2.txt"
+     fi
+elif grep -q "isolinux" "$1/$2.txt"; then
+     echo "Update $2.txt file..."
+     if   [[ $system == "Darwin" ]]; then
+          sed -i '' 's/isolinux/syslinux/g' "$1/$2.txt"
+     elif [[ $system == "Linux" ]]; then
+          sed -i 's/isolinux/syslinux/g' "$1/$2.txt"
+     fi
+fi
+}
+
 # Verify selected drive is valid and run actions.
 
 if    [[ $erase == "true" && -e /dev/$drive ]]; then
@@ -536,15 +556,10 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
             fi
          fi
          if [[ -f /Volumes/"$label"/md5sum.txt ]]; then
-            if   [[ "$persist" == "true" ]]; then
-                 cd /Volumes/"$label"
-                 rm md5sum.txt
-                 echo "Create new md5sum.txt file..."
-                 find . -type f -not -name 'md5sum.txt' -exec md5sum '{}' \; 2> /dev/null > md5sum.txt
-            elif grep -q "isolinux" /Volumes/"$label"/md5sum.txt; then
-                 echo "Update md5sum.txt file..."
-                 sed -i '' 's/isolinux/syslinux/g' /Volumes/"$label"/md5sum.txt
-            fi
+            checksum_files /Volumes/"$label" md5sum sha256sum
+         fi
+         if [[ -f /Volumes/"$label"/sha256sum.txt ]]; then
+            checksum_files /Volumes/"$label" sha256sum md5sum
          fi
          read -p "Finished! Press any key to exit." -n1 -s
          exit 0
@@ -702,15 +717,10 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
              fi
 	  fi
 	  if [[ -f /media/$USER/"$label"/md5sum.txt ]]; then
-	     if   [[ "$persist" == "true" ]]; then
-	          cd /media/$USER/"$label"
-	          rm md5sum.txt
-	          echo "Create new md5sum.txt file..."
-	          find -type f -not -name 'md5sum.txt' -exec md5sum '{}' \; > md5sum.txt
-	     elif grep -q "isolinux" /media/$USER/"$label"/md5sum.txt; then
-	          echo "Update md5sum.txt file..."
-	          sed -i 's/isolinux/syslinux/g' /media/$USER/"$label"/md5sum.txt
-	     fi
+	     checksum_files /media/$USER/"$label" md5sum sha256sum
+	  fi
+	  if [[ -f /media/$USER/"$label"/sha256sum.txt ]]; then
+	     checksum_files /media/$USER/"$label" sha256sum md5sum
 	  fi
 	  read -p "Finished! Press any key to exit." -n1 -s
 	  exit 0
