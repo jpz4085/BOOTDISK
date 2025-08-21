@@ -11,6 +11,8 @@ Features
 
 - Create bootable Windows install media and [Windows To Go](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/deployment/windows-to-go/windows-to-go-overview) media from an ISO image.[^1]
 
+- Create bootable Linux media that includes persistence on supported distributions. [^2]
+
 - Create UEFI bootable exFAT or NTFS disks using the [UEFI:NTFS](https://github.com/pbatard/uefi-ntfs) bootloader.
 
 - Create a boot disk using the pre-built [UEFI Shell](https://github.com/pbatard/UEFI-Shell) image provided by Pete Batard.
@@ -56,7 +58,9 @@ Dependencies
 |Legacy BIOS and DOS media: | ms-sys, mtools|  
 |Support for Windows To Go media: | wimtools, [bcd-sys](https://github.com/jpz4085/BCD-SYS)|  
 |macOS NTFS Write/Format Support: | Tuxera/Paragon|  
+|macOS Linux Persistence Support: |e2fsprogs|  
 
 ***Note:*** For macOS see [MacPorts](https://www.macports.org/) or [Homebrew](https://brew.sh/).
 
-[^1]: See the Troubleshooting section of [NOTES](https://github.com/jpz4085/BOOTDISK/blob/main/Support/NOTES.md) for help if the terminal is forced closed due to a memory issue.
+[^1]: See the Troubleshooting section of [NOTES](https://github.com/jpz4085/BOOTDISK/blob/main/Support/NOTES.md) for help if the terminal is forced closed due to a memory issue.  
+[^2]: Persistence partitions are supported on Debian, Fedora, Gentoo, Ubuntu and related distributions.
