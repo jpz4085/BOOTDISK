@@ -19,10 +19,15 @@
 
 title_block () {
 cat<<EOF
-===========================
-   ---BOOTDISK v1.8---
-Flash Drive Formatting Tool
-===========================
+.*******************************.
+|         BOOTDISK v1.9         |
+|                               |
+|         _   ,--()             |
+|        ( )-'-.------|>        |
+|         "     \`--[]           |
+|                               |
+|  Flash Drive Formatting Tool  |
+'*******************************'
 Select an option:
 
 EOF
@@ -30,7 +35,7 @@ EOF
 
 lower_border () {
 cat<<EOF
-===========================
+********************************
 EOF
 }
 
@@ -40,7 +45,7 @@ do
 clear
 title_block
 cat<<EOF
-FreeDOS 1.3  (1)
+FreeDOS 1.4  (1)
 MS-DOS  8.0  (2)
 Windows 7-11 (3)
 Linux/Other  (4)
@@ -69,7 +74,7 @@ do
 clear
 title_block
 cat<<EOF
-FreeDOS 1.3  (1)
+FreeDOS 1.4  (1)
 Windows 7-11 (2)
 Linux/Other  (3)
 Tools Menu   (4)
@@ -142,7 +147,7 @@ done
 
 fdosdisk () {
 clear
-echo "   FreeDOS 1.3 Boot Disk Script    "
+echo "   FreeDOS 1.4 Boot Disk Script    "
 echo "-----------------------------------"
 if [[ "$system" == "Darwin" ]]; then
    read -p "Enter target disk [disk#]: " tgtdsk
