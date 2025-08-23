@@ -5,7 +5,7 @@
 Main Menu
 =========
 
-FreeDOS 1.3   Create a boot disk containing a basic set of utilities like FDISK,FORMAT,SYS,EDIT,etc.
+FreeDOS 1.4   Create a boot disk containing a basic set of utilities like FDISK,FORMAT,SYS,EDIT,etc.
 
 MS-DOS 8.0    Create a boot disk using the MS-DOS version included with Windows from XP to 8.1.
               This option is not present by default and must be enabled from the Tools sub-menu.
