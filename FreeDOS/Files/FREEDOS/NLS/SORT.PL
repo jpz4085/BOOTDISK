@@ -1,4 +1,4 @@
-# Language: Polish (MAZOVIA)
+# Language: Polish (MAZOVIA) (Codepage???)
 # Translated by Mateusz Viste
 # Polish letters encoded in the MAZOVIA standard
 

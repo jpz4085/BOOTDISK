@@ -1,3 +1,6 @@
+# Language: Sveden (CP 865)
+# Translated by: unknown
+# Last update: unknown
 2.0:Ogiltig parameter\r\n
 0.0:    SORT [/R] [/+num] [/A] [/?] [fil]\r\n
 0.1:    /R    Omv„nd ordning\r\n

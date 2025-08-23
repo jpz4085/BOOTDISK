@@ -9,7 +9,7 @@ set TMP=%TEMP%
 set DIRCMD=/P /OGN /Y /LFN
 set COPYCMD=/-Y
 set OS_NAME=FreeDOS
-set OS_VERSION=1.3
+set OS_VERSION=1.4
 alias reboot=fdapm warmboot
 alias shutdown=fdapm poweroff
 
