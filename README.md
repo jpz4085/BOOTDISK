@@ -2,10 +2,14 @@
 
 This utility consists of BASH scripts that create bootable flash drives for use on UEFI and BIOS systems. It provides functionality under macOS and Linux similar to the Rufus USB Tool for Windows.
 
+Main Menu | Tools Menu
+:-------------:|:-----------------:
+<img align="left" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/.github/images/Main Menu.png" width=386 height=452/> | <img align="right" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/.github/images/Tools Menu.png" width=427 height=452/>
+
 Features
 --------
 
-- Create a FreeDOS 1.3 boot disk with the basic utilities such as FDISK,FORMAT,SYS,EDIT etc.
+- Create a FreeDOS 1.4 boot disk with the basic utilities such as FDISK,FORMAT,SYS,EDIT etc.
 
 - Create a MS-DOS boot disk using the version included with Windows from XP to 8.1.
 
