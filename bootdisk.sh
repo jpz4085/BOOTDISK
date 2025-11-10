@@ -320,10 +320,8 @@ if   [[ "$system" == "Darwin" ]]; then
          fi
      fi
 elif [[ "$system" == "Linux" ]]; then
-     if [[ -z "$winfsopts" ]]; then
-        if [[ ! -z $(command -v mkfs.exfat) ]]; then winfsopts+="/EXFAT"; fi
-        if [[ ! -z $(command -v mkntfs) ]]; then winfsopts+="/NTFS"; fi
-     fi
+     if [[ ! -z $(command -v mkfs.exfat) ]]; then winfsopts+="|EXFAT"; fi
+     if [[ ! -z $(command -v mkntfs) ]]; then winfsopts+="|NTFS"; fi
      if [[ ! -z $(command -v mkntfs) && ! -z $(command -v ntfs-3g) ]]; then
         if [[ $wimtools == "true" && ! -z $(command -v bcd-sys) ]]; then
            wtgsupport="true"
@@ -334,12 +332,21 @@ if   [[ $wtgsupport == "true" ]]; then
      while :
      do
      clear
-     title_block
-     echo "Create install media    (1)"
-     echo "Create Windows to Go    (2)"
-     echo "Return to Main Menu     (3)"
-     lower_border
-     read -p"Enter Choice: "
+     if   [[ "$usezenity" == "true" ]]; then
+          choice=$(zenity --list --radiolist --height=300 --width=100 --title="BOOTDISK" --text="Select an option from the list:" --hide-header --hide-column=2 --print-column=2 --column="Select" --column="ID" --column="Windows Option" FALSE 1 "Create install media" FALSE 2 "Create Windows To Go")
+          if  [[ $? -ne 0 ]]; then
+              read <<< 3
+          else
+              read <<< $choice
+          fi
+     else
+          title_block
+          echo "Create install media    (1)"
+          echo "Create Windows to Go    (2)"
+          echo "Return to Main Menu     (3)"
+          lower_border
+          read -p"Enter Choice: "
+     fi
      case "$REPLY" in
      "1")  windowsdisk ;;
      "2")  windowstogo ;;
@@ -353,9 +360,11 @@ fi
 }
 
 windowsdisk () {
-clear
-echo "    Windows Install Disk Script    "
-echo "-----------------------------------"
+if [[ "$usezenity" == "false" ]]; then
+   clear
+   echo "    Windows Install Disk Script    "
+   echo "-----------------------------------"
+fi
 if [[ "$system" == "Darwin" ]]; then
    read -p "Enter target disk [disk#]: " tgtdsk
    while [[ $tgtdsk != *"disk"* ]]; do
@@ -363,20 +372,36 @@ if [[ "$system" == "Darwin" ]]; then
          read -p "Enter target disk [disk#]: " tgtdsk
    done
 elif [[ "$system" == "Linux" ]]; then
-     read -p "Enter target disk [sd*]: " tgtdsk
-     while [[ $tgtdsk != *"sd"* ]]; do
-           echo -e "${RED}Invalid disk name. Try again.${NC}"
-           read -p "Enter target disk [sd*]: " tgtdsk
-     done
+     if   [[ "$usezenity" == "true" ]]; then
+          tgtdsk=$(eval zenity $zendevargs ${devices[@]})
+          if [[ $? -ne 0 ]]; then return; fi
+     else
+          read -p "Enter target disk [sd*]: " tgtdsk
+          while [[ $tgtdsk != *"sd"* ]]; do
+                echo -e "${RED}Invalid disk name. Try again.${NC}"
+                read -p "Enter target disk [sd*]: " tgtdsk
+          done
+     fi
 fi
 
-read -p "Enter partition scheme [GPT/MBR]: " prtshm
-prtshm=${prtshm^^}
-while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
-      echo -e "${RED}Invalid partition scheme. Try again.${NC}"
-      read -p "Enter partition scheme [GPT/MBR]: " prtshm
-      prtshm=${prtshm^^}
-done
+if   [[ "$usezenity" == "true" ]]; then
+     if   [[ "$winfsopts" != "" ]]; then
+          layout=$(zenity --forms --title="BOOTDISK: Windows" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="MBR|GPT" --add-combo="Format Options" --combo-values="FAT32$winfsopts")
+          if [[ $? -ne 0 ]]; then return; fi
+          prtshm=$(echo $layout | awk -F'|' '{print $1}')
+          fstyp=$(echo $layout | awk -F'|' '{print $2}')
+     else
+         prtshm=$(zenity --forms --title="BOOTDISK: Windows" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="MBR|GPT")
+     fi
+else
+     read -p "Enter partition scheme [GPT/MBR]: " prtshm
+     prtshm=${prtshm^^}
+     while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
+           echo -e "${RED}Invalid partition scheme. Try again.${NC}"
+           read -p "Enter partition scheme [GPT/MBR]: " prtshm
+           prtshm=${prtshm^^}
+     done
+fi
 
 if   [[ "$system" == "Darwin" ]]; then
      if  [[ $personality == "Tuxera" || $personality == "UFSD_NTFS" ]]; then
@@ -398,53 +423,85 @@ if   [[ "$system" == "Darwin" ]]; then
      fi
 elif [[ "$system" == "Linux" ]]; then
     if   [[ "$winfsopts" != "" ]]; then
-         read -p "Enter file system [FAT32$winfsopts]: " fstyp
+         if [[ "$usezenity" == "false" ]]; then
+            read -p "Enter file system [FAT32$winfsopts]: " fstyp
+            fstyp=${fstyp^^}
+            while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" && $fstyp != "NTFS" ]]; do
+                  echo -e "${RED}Invalid file system type. Try again.${NC}"
+                  read -p "Enter file system [FAT32$winfsopts]: " fstyp
+                  fstyp=${fstyp^^}
+            done
+         fi
     else
          fstyp="FAT32"
-         echo "Only file system available is FAT32."
+         if   [[ "$usezenity" == "true" ]]; then
+              zenity --warning --title="Format Warning" --text="Only file system available is FAT32."
+         else
+              echo "Only file system available is FAT32."
+         fi
     fi
-    fstyp=${fstyp^^}
-    while [[ $fstyp != "FAT32" && $fstyp != "EXFAT" && $fstyp != "NTFS" ]]; do
-        echo -e "${RED}Invalid file system type. Try again.${NC}"
-        read -p "Enter file system [FAT32/EXFAT/NTFS]: " fstyp
-        fstyp=${fstyp^^}
-    done
 fi
     
-if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]] && [[ -e $resdir/Support/uefi-ntfs.img ]]; then
-    read -p "Enable UEFI boot support [Y/N]? " uefint
-    uefint=${uefint^^}
-    while [[ $uefint != "Y" && $uefint != "N" ]]; do
-        echo -e "${RED}Invalid entry. Try again.${NC}"
-        read -p "Enable UEFI boot support [Y/N]? " uefint
-        uefint=${uefint^^}
-    done
+if   [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]] && [[ -e $resdir/Support/uefi-ntfs.img ]]; then
+     if   [[ "$usezenity" == "true" ]]; then
+           if zenity --question --title="UEFI:NTFS" --text="Enable UEFI boot support?"; then uefint="Y"; else uefint="N"; fi
+     else
+          read -p "Enable UEFI boot support [Y/N]? " uefint
+          uefint=${uefint^^}
+          while [[ $uefint != "Y" && $uefint != "N" ]]; do
+                echo -e "${RED}Invalid entry. Try again.${NC}"
+                read -p "Enable UEFI boot support [Y/N]? " uefint
+                uefint=${uefint^^}
+          done
+     fi
 else
-    uefint="N"
+     uefint="N"
 fi
 
-read -p "Enter label [WINDOWS]: " volname
+if   [[ "$usezenity" == "true" ]]; then
+     volname=$(zenity --entry --title="BOOTDISK: Windows" --text="Volume Label:" --entry-text="WINDOWS")
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     read -p "Enter label [WINDOWS]: " volname
+fi
 n=${#volname}
 if [[ $fstyp == "FAT32" || $fstyp == "EXFAT" ]]; then
-   if [[ $fstyp == "FAT32" ]]; then volname=${volname^^}; fi
    while [ $n -gt 11 ]; do
-         echo -e "${RED}Label must be eleven characters or less.${NC}"
-         read -p "Enter label [WINDOWS]: " volname
+         if   [[ "$usezenity" == "true" ]]; then
+              zenity --warning --title="Volume Name" --text="Label must be eleven characters or less."
+              volname=$(zenity --entry --title="BOOTDISK: Windows" --text="Volume Label:" --entry-text="WINDOWS")
+              if [[ $? -ne 0 ]]; then return; fi
+         else
+              echo -e "${RED}Label must be eleven characters or less.${NC}"
+              read -p "Enter label [WINDOWS]: " volname
+         fi
          n=${#volname}
    done
+   if [[ $fstyp == "FAT32" ]]; then volname=${volname^^}; fi
 elif [[ "$system" == "Linux" && $fstyp == "NTFS" ]]; then
      while [ $n -gt 128 ]; do
-           echo -e "${RED}Label must be 128 characters or less.${NC}"
-           read -p "Enter label [WINDOWS]: " volname
+           if   [[ "$usezenity" == "true" ]]; then
+                zenity --warning --title="Volume Name" --text="Label must be 128 characters or less."
+                volname=$(zenity --entry --title="BOOTDISK: Windows" --text="Volume Label:" --entry-text="WINDOWS")
+                if [[ $? -ne 0 ]]; then return; fi
+           else
+                echo -e "${RED}Label must be 128 characters or less.${NC}"
+                read -p "Enter label [WINDOWS]: " volname
+           fi
            n=${#volname}
      done
 fi
 if [[ "$volname" == "" ]]; then volname=WINDOWS; fi
-read -p "Enter ISO path [NONE]: " image
+
+if   [[ "$usezenity" == "true" ]]; then
+     image=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
+else
+     read -p "Enter ISO path [NONE]: " image
+fi
 if [[ "$image" == "" ]]; then image=NONE; fi
 
 echo
-(cd $resdir/Windows; ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $wimtools $tgtdsk)
+(cd $resdir/Windows; ./windowsdisk.sh $system $prtshm $fstyp $uefint "$volname" "$image" $wimtools $tgtdsk $usezenity)
 }
 
 wtgtitle () {
