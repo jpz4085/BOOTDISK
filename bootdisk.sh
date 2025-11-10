@@ -20,7 +20,7 @@
 title_block () {
 cat<<EOF
 .*******************************.
-|         BOOTDISK v1.9         |
+|         BOOTDISK v2.0         |
 |                               |
 |         _   ,--()             |
 |        ( )-'-.------|>        |
@@ -43,6 +43,14 @@ menu_full () {
 while :
 do
 clear
+if   [[ "$usezenity" == "true" ]]; then
+     choice=$(zenity --list --cancel-label="Quit" --radiolist --width=400 --height=455 --title="BOOTDISK" --text="Select an option from the list:" --hide-header --hide-column=2 --print-column=2 --column="Select" --column="ID" --column="Boot Option" FALSE 1 "FreeDOS" FALSE 2 "MS-DOS" FALSE 3 "Windows" FALSE 4 "Linux/Other" FALSE 5 "Tools" FALSE 6 "About")
+     if [[ $? -ne 0 ]]; then
+          read <<< 7
+     else
+          read <<< $choice
+     fi
+else
 title_block
 cat<<EOF
 FreeDOS 1.4  (1)
@@ -55,6 +63,7 @@ Quit         (7)
 EOF
 lower_border
 read -p"Enter Choice: "
+fi
 case "$REPLY" in
 "1")  fdosdisk    ;;
 "2")  msdosdisk   ;;
@@ -72,6 +81,14 @@ menu_standard () {
 while :
 do
 clear
+if   [[ "$usezenity" == "true" ]]; then
+     choice=$(zenity --list --cancel-label="Quit" --radiolist --width=400 --height=455 --title="BOOTDISK" --text="Select an option from the list:" --hide-header --hide-column=2 --print-column=2 --column="Select" --column="ID" --column="Boot Option" FALSE 1 "FreeDOS" FALSE 2 "Windows" FALSE 3 "Linux/Other" FALSE 4 "Tools" FALSE 5 "About")
+     if [[ $? -ne 0 ]]; then
+          read <<< 6
+     else
+          read <<< $choice
+     fi
+else
 title_block
 cat<<EOF
 FreeDOS 1.4  (1)
@@ -83,6 +100,7 @@ Quit         (6)
 EOF
 lower_border
 read -p"Enter Choice: "
+fi
 case "$REPLY" in
 "1")  fdosdisk    ;;
 "2")  windowsmode ;;
@@ -99,6 +117,14 @@ menu_default () {
 while :
 do
 clear
+if   [[ "$usezenity" == "true" ]]; then
+     choice=$(zenity --list --cancel-label="Quit" --radiolist --width=400 --height=455 --title="BOOTDISK" --text="Select an option from the list:" --hide-header --hide-column=2 --print-column=2 --column="Select" --column="ID" --column="Boot Option" FALSE 1 "Windows" FALSE 2 "Linux/Other" FALSE 3 "Tools" FALSE 4 "About")
+     if [[ $? -ne 0 ]]; then
+          read <<< 5
+     else
+          read <<< $choice
+     fi
+else
 title_block
 cat<<EOF
 Windows 7-11 (1)
@@ -109,6 +135,7 @@ Quit         (5)
 EOF
 lower_border
 read -p"Enter Choice: "
+fi
 case "$REPLY" in
 "1")  windowsmode ;;
 "2")  linux_other ;;
@@ -124,6 +151,14 @@ menu_tools () {
 while :
 do
 clear
+if   [[ "$usezenity" == "true" ]]; then
+     choice=$(zenity --list --radiolist --width=350 --height=370 --title="BOOTDISK: Tools Menu" --text="Select an option from the list:" --hide-header --column="Select" --column="ID" --column="Tool Option" --hide-column=2 FALSE 1 "Extract MS-DOS" FALSE 2 "Download an ISO file" FALSE 3 "Windows ISO checksum" FALSE 4 "Windows Customization")
+     if [[ $? -ne 0 ]]; then
+          read <<< 5
+     else
+          read <<< $choice
+     fi
+else
 title_block
 cat<<EOF
 Extract MS-DOS 8.0          (1)
@@ -134,6 +169,7 @@ Return to Main Menu         (5)
 EOF
 lower_border
 read -p"Enter Choice: "
+fi
 case "$REPLY" in
 "1")  extractdos  ;;
 "2")  fido_script ;;
@@ -912,14 +948,21 @@ read -n 1 -s -r -p "Press any key to continue"
 }
 
 select_err () {
-echo "Invalid selection try again."
-sleep 1
+if   [[ "$usezenity" == "true" ]]; then
+     zenity --error --title="Selection Error" --text="Please make a valid selection to proceed."
+else
+     echo "Invalid selection try again."
+     sleep 1
+fi
 }
 
 # Script starts here.
 RED='\033[1;31m'
 NC='\033[0m' # No Color
 system=`uname`
+text_mode="false"
+
+if [[ "$1" == "--text-mode" || $system == "Darwin" ]]; then text_mode="true"; fi
 
 # Set resource location for supported platforms or exit.
 if   [[ $system == "Darwin" ]]; then
@@ -929,6 +972,15 @@ elif [[ $system == "Linux" ]]; then
 else
      echo "Unsupported platform detected."
      exit 1
+fi
+
+#Check if zenity is installed.
+if  [[ ! -z $(command -v zenity) && "$text_mode" == "false" ]]; then
+    usezenity="true"
+    zendevargs='--list --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
+    readarray -t devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk '{printf("%s %s %4s %7s ", $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
+else
+    usezenity="false"
 fi
 
 # Check for required packages that are missing.
@@ -941,8 +993,14 @@ if [[ $system == "Darwin" ]]; then
        missing+=" bash(>$bashver)"
    fi
 fi
-if [[ "$missing" != "" ]]; then
-   echo "The following packages are required:""$missing"
+if [[ ! -z "$missing" ]]; then
+   if   [[ "$usezenity" == "true" ]]; then
+        missing="$(sed 's/^[[:space:]]*//;s/ /, /g' <<< $missing)"
+        zenity --error --title="Missing Dependencies" --text="The following packages are required: $missing"
+   else
+        missing="$(sed 's/^[[:space:]]*//' <<< $missing)"
+        echo "The following packages are required: $missing"
+   fi
    exit 1
 fi
 
