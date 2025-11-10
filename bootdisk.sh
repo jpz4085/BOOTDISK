@@ -182,9 +182,11 @@ done
 }
 
 fdosdisk () {
-clear
-echo "   FreeDOS 1.4 Boot Disk Script    "
-echo "-----------------------------------"
+if [[ "$usezenity" == "false" ]]; then
+   clear
+   echo "   FreeDOS 1.4 Boot Disk Script    "
+   echo "-----------------------------------"
+fi
 if [[ "$system" == "Darwin" ]]; then
    read -p "Enter target disk [disk#]: " tgtdsk
    while [[ $tgtdsk != *"disk"* ]]; do
@@ -192,33 +194,55 @@ if [[ "$system" == "Darwin" ]]; then
          read -p "Enter target disk [disk#]: " tgtdsk
    done
 elif [[ "$system" == "Linux" ]]; then
-     read -p "Enter target disk [sd*]: " tgtdsk
-     while [[ $tgtdsk != *"sd"* ]]; do
-           echo -e "${RED}Invalid disk name. Try again.${NC}"
-           read -p "Enter target disk [sd*]: " tgtdsk
+     if   [[ "$usezenity" == "true" ]]; then
+          tgtdsk=$(eval zenity $zendevargs ${devices[@]})
+          if [[ $? -ne 0 ]]; then return; fi
+     else
+          read -p "Enter target disk [sd*]: " tgtdsk
+          while [[ $tgtdsk != *"sd"* ]]; do
+                echo -e "${RED}Invalid disk name. Try again.${NC}"
+                read -p "Enter target disk [sd*]: " tgtdsk
+          done
+     fi
+fi
+
+if   [[ "$usezenity" == "true" ]]; then
+     fstyp=$(zenity --forms --title="BOOTDISK: FreeDOS" --text="Format Options" --add-combo="Filesystem" --combo-values="FAT16|FAT32")
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     read -p "Enter file system [FAT16/FAT32]: " fstyp
+     fstyp=${fstyp^^}
+     while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
+         echo -e "${RED}Invalid file system type. Try again.${NC}"
+         read -p "Enter file system [FAT16/FAT32]: " fstyp
+         fstyp=${fstyp^^}
      done
 fi
 
-read -p "Enter file system [FAT16/FAT32]: " fstyp
-fstyp=${fstyp^^}
-while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
-    echo -e "${RED}Invalid file system type. Try again.${NC}"
-    read -p "Enter file system [FAT16/FAT32]: " fstyp
-    fstyp=${fstyp^^}
-done
-
-read -p "Enter label [FREEDOS]: " volname
-if [[ "$volname" == "" ]]; then volname=FREEDOS; fi
+if   [[ "$usezenity" == "true" ]]; then
+     volname=$(zenity --entry --title="BOOTDISK: FreeDOS" --text="Volume Label:" --entry-text="FREEDOS")
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     read -p "Enter label [FREEDOS]: " volname
+     if [[ "$volname" == "" ]]; then volname=FREEDOS; fi
+fi
 volname=${volname^^}
 n=${#volname}
 while [ $n -gt 11 ]; do
-      echo -e "${RED}Label must be eleven characters or less.${NC}"
-      read -p "Enter label [WINDOWS]: " volname
+      if   [[ "$usezenity" == "true" ]]; then
+           zenity --warning --title="Volume Name" --text="Label must be eleven characters or less."
+           volname=$(zenity --entry --title="BOOTDISK: FreeDOS" --text="Volume Label:" --entry-text="FREEDOS")
+           if [[ $? -ne 0 ]]; then return; fi
+      else
+           echo -e "${RED}Label must be eleven characters or less.${NC}"
+           read -p "Enter label [FREEDOS]: " volname
+      fi
+      volname=${volname^^}
       n=${#volname}
 done
 
 echo
-(cd $resdir/FreeDOS; ./freedosdisk.sh $system $fstyp "$volname" $tgtdsk)
+(cd $resdir/FreeDOS; ./freedosdisk.sh $system $fstyp "$volname" $tgtdsk $usezenity)
 }
 
 msdosdisk () {
