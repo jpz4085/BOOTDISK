@@ -27,9 +27,13 @@ label="$5"
 isofile="$6"
 wimtools="$7"
 drive="$8"
+usegui="$9"
 biosmode="false"
+haveiso="false"
 
+kbyte=1024
 mbyte=1048576
+gbyte=1073741824
 
 endian () {
 v=$1
@@ -43,6 +47,13 @@ done
 echo
 }
 
+if  [[ "$usegui" == "true" ]]; then
+    usezenity="true"
+    zenprogargs='--width=300 --progress --no-cancel --title="BOOTDISK: Windows Install"'
+else
+    usezenity="false"
+fi
+
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT32" ]]; then pty=c; fi                      #FAT32 LBA
    if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]]; then pty=7; fi  #NTFS/HPFS/exFAT
@@ -53,27 +64,173 @@ if [[ $prtshm == "GPT" ]]; then
 fi
 
 # Verify selected ISO file then check size of install archive.
-if  [[ "$isofile" == *".iso"* && ! -e "$isofile" ]]; then
-    echo "Unable to access Windows ISO file."
-    echo
-    read -p "Press any key to continue... " -n1 -s
-    exit 1
+if  [[ ! -z "$isofile" && "$isofile" == *".iso"* ]]; then
+    if   [[ -f "$isofile" ]]; then
+         haveiso="true"
+    else
+         if   [[ "$usezenity" == "true" ]]; then
+              zenity --error --title="File Error" --text="Unable to access Windows ISO file."
+         else
+              echo "Unable to access Windows ISO file."
+              echo
+              read -p "Press any key to continue... " -n1 -s
+         fi
+         exit 1
+    fi
 fi
-if  [[ "$isofile" == *".iso"* ]]; then
+if  [[ "$haveiso" == "true" ]]; then
     wimext="wim" # Extention will be renamed if using wimsplit.
     wimsize=$(7z l "$isofile" | grep install.wim | awk '{print $4}')
-    if  [[ "$fstyp" == "FAT32" && $wimsize -gt 4294967296 ]]; then
+    if  [[ "$fstyp" == "FAT32" && $wimsize -gt $(($gbyte * 4)) ]]; then
         if  [[ $wimtools == "true" ]]; then
             wimext="swm"
         else
-            echo "FAT32 is not compatible with files larger than 4GBs."
-            echo "Please install wimlib or format disk as NTFS or EXFAT."
-            echo
-            read -p "Press any key to continue... " -n1 -s
+            if   [[ "$usezenity" == "true" ]]; then
+                 zenity --width=390 --height=70 --error --title="File System Error" \
+                 --text="FAT32 is not compatible with files larger than 4GBs.\
+                 \nPlease install wimlib or format disk as NTFS or EXFAT."
+            else
+                 echo "FAT32 is not compatible with files larger than 4GBs."
+                 echo "Please install wimlib or format disk as NTFS or EXFAT."
+                 echo
+                 read -p "Press any key to continue... " -n1 -s
+            fi
             exit 1
         fi
     fi
 fi
+
+extract_files () {
+isopct=0
+exclude="$3"
+valpct="$4"
+divpct="$5"
+isoextsz=$(7z l "$1" | grep 'files,' | awk '{print $3}')
+if   [[ $system == "Darwin" ]]; then
+     fsavail=$(df -k "$2" | awk '{print $4}' | tail -1)
+elif [[ $system == "Linux" ]]; then
+     bufpct=0
+     fsavail=$(df --output=avail "$2" | tail -1)
+fi
+fsbegin=$(($fsavail * $kbyte))
+
+if   [[ "$exclude" == "true" ]] ; then
+     isoextsz=$(($isoextsz - $wimsize))
+     coproc XISO (7z x "$1" -xr\!install.wim -o"$2" > /dev/null)
+else
+     coproc XISO (7z x "$1" -o"$2" > /dev/null)
+fi
+
+while kill -0 $XISO_PID 2> /dev/null; do
+      if   [[ $system == "Darwin" ]]; then
+           fsavail=$(df -k "$2" | awk '{print $4}' | tail -1)
+      elif [[ $system == "Linux" ]]; then
+           fsavail=$(df --output=avail "$2" | tail -1)
+      fi
+      if [[ "$usezenity" == "true" ]]; then echo "# Extracting ISO archive..."; fi
+      isopct=$(((($fsbegin - ($fsavail * $kbyte)) * 100) / $isoextsz))
+      if   [[ "$usezenity" == "true" ]]; then
+           isoout=$(($valpct + ($isopct / $divpct)))
+           echo $isoout
+      else
+           echo -ne "Extract ISO archive:" $isopct"%"\\r
+      fi
+done
+
+if [[ "$usezenity" == "false" ]]; then
+   echo "Extract ISO archive: 100%"
+fi
+
+if [[ $system == "Linux" ]] ; then
+   coproc BUFF (sync)
+   
+   if [[ $fstyp == "FAT32" && "$exclude" == "false" ]] ; then
+      sudo -v #Refresh credentials for unmount.
+   fi
+   
+   if [[ "$usezenity" == "true" ]]; then
+      echo "# Writing files to disk..."  
+   fi
+  
+   while kill -0 $BUFF_PID 2> /dev/null; do
+         dirty=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+         bufpct=$(((($isoextsz - ($dirty * $kbyte)) * 100) / $isoextsz))
+         if   [[ "$usezenity" == "true" ]]; then
+              bufout=$(($isoout + ($bufpct / $divpct)))
+              echo $bufout
+         else
+              echo -ne "Write files to disk:" $bufpct"%"\\r
+         fi
+   done
+
+   if [[ "$usezenity" == "false" ]]; then
+      echo "Write files to disk: 100%"
+   fi
+fi
+}
+
+split_install () {
+valpct="$4"
+fsroot=$(echo "$2" | sed 's/\/sources\/install\.swm//')
+
+if   [[ $system == "Darwin" ]]; then
+     fsavail=$(df -k "$fsroot" | awk '{print $4}' | tail -1)
+elif [[ $system == "Linux" ]]; then
+     fsavail=$(df --output=avail "$fsroot" | tail -1)
+fi
+
+fsbegin=$(($fsavail * $kbyte))
+
+if [[ "$usezenity" == "true" ]]; then
+   echo "# Split install archive..."
+fi
+
+coproc DIVWIM (wimsplit "$1" "$2" "$3" > /dev/null)
+
+while kill -0 $DIVWIM_PID 2> /dev/null; do
+      if   [[ $system == "Darwin" ]]; then
+           fsavail=$(df -k "$fsroot" | awk '{print $4}' | tail -1)
+      elif [[ $system == "Linux" ]]; then
+           fsavail=$(df --output=avail "$fsroot" | tail -1)
+      fi
+      wimpct=$(((($fsbegin - ($fsavail * $kbyte)) * 100) / $wimsize))
+      if   [[ "$usezenity" == "true" ]]; then
+           wimout=$(($valpct + ($wimpct / 10)))
+           echo "$wimout"
+      else
+           echo -ne "Split install archive:" $wimpct"%"\\r
+      fi
+done
+
+if [[ "$usezenity" == "false" ]]; then
+   echo "Split install archive: 100%"
+fi
+
+if [[ $system == "Linux" ]] ; then
+   coproc WIM_BUFF (sync)
+   
+   sudo -v #Refresh credentials for unmount.
+   
+   if [[ "$usezenity" == "true" ]]; then
+      echo "# Writing archive to disk..."  
+   fi
+  
+   while kill -0 $WIM_BUFF_PID 2> /dev/null; do
+         dirty=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+         bufpct=$(((($wimsize - ($dirty * $kbyte)) * 100) / $wimsize))
+         if   [[ "$usezenity" == "true" ]]; then
+              bufout=$(($wimout + ($bufpct / 10)))
+              echo $bufout
+         else
+              echo -ne "Write archive to disk:" $bufpct"%"\\r
+         fi
+   done
+
+   if [[ "$usezenity" == "false" ]]; then
+      echo "Write archive to disk: 100%"
+   fi
+fi
+}
 
 # Verify selected disk and run requested actions.
 if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
@@ -165,19 +322,16 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	fi
 	echo "Disable Spotlight indexing..."
 	mdutil -d /Volumes/"$label" &> /dev/null
-	if [[ "$isofile" == *".iso"* ]]; then
- 	   if   [[ "$fstyp" == "FAT32" && $wimsize -gt 4294967296 ]]; then
- 	        echo "Extract Windows install files..."
-	        7z x "$isofile" -xr\!install.wim -o/Volumes/"$label" > /dev/null
+	if [[ "$haveiso" == "true" ]]; then
+ 	   if   [[ "$fstyp" == "FAT32" && $wimsize -gt $(($gbyte * 4)) ]]; then
+ 	        extract_files "$isofile" /Volumes/"$label" "true" "0" "0"
 	        echo "Mount install disk image..."
 	        hdiutil attach "$isofile" -mountpoint /tmp/isomount -nobrowse > /dev/null
-	        echo "Split install archive for FAT32..."
-	        wimsplit /tmp/isomount/sources/install.wim /Volumes/"$label"/sources/install.swm 3800 > /dev/null
+	        split_install /tmp/isomount/sources/install.wim /Volumes/"$label"/sources/install.swm 3800 "0"
 	        echo "Unmount install disk image..."
 	        hdiutil detach /tmp/isomount > /dev/null
 	   else
-	        echo "Extract Windows install files..."
-	        7z x "$isofile" -o/Volumes/"$label" > /dev/null
+	        extract_files "$isofile" /Volumes/"$label" "false" "0" "2"
 	   fi
 	   if [[ ! -e /Volumes/"$label"/efi/boot/bootx64.efi ]]; then
 	      echo "Copy bootmgfw.efi to the EFI boot folder..." # This should only apply to Windows 7 media.
@@ -185,21 +339,34 @@ if	[[ -e /dev/$drive && $system == "Darwin" ]]; then
 	      mv /Volumes/"$label"/efi/boot/bootmgfw.efi /Volumes/"$label"/efi/boot/bootx64.efi
 	   fi
 	fi
-	echo "Finished!"
-	sleep 1
+	if   [[ "$haveiso" == "true" ]]; then
+	     read -p "Finished! Press any key to exit." -n1 -s
+	else
+	     echo "Finished!"
+	     sleep 1
+	fi
+	exit 0
 elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
-	echo "Reading device information (sudo required)..."
+	if   [[ "$usezenity" == "true" ]]; then
+	     zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	     if [[ $? -ne 0 ]]; then exit 1; fi
+	else
+	     echo "Reading device information (sudo required)..."
+        fi
 	sudo chmod o+rw /dev/$drive
 	devblksz=$(blockdev --getss /dev/$drive)
 	disk_size=$(blockdev --getsize64 /dev/$drive)
 	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
+	(
 	echo "Unmount volumes..."
 	umount /dev/$drive?
+	if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
 	echo "Erase MBR/GPT structures..."
 	mibblksz=$(($mbyte / $devblksz))
 	disk_offset=$(($disk_length - mibblksz))
 	dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
+	if [[ "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	echo "Prepare disk and make bootable..."
 	disk_mbytes=$(($disk_size / $mbyte)) #Disk space in whole MiBs
 	if [[ $uefint == "Y" ]]; then
@@ -236,35 +403,53 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	if [[ $pty == "7" && "$biosmode" == "true" ]]; then
 	   ms-sys -w /dev/$drive"1" > /dev/null
 	fi
+	if [[ "$usezenity" == "true" ]]; then echo "30"; printf "# "; fi
 	echo "Mount boot disk..." && sleep 1
-	gio mount -d /dev/$drive"1"
-	if [[ "$isofile" == *".iso"* ]]; then
- 	   if   [[ "$fstyp" == "FAT32" && $wimsize -gt 4294967296 ]]; then
- 	        echo "Extract Windows install files..."
-	        7z x "$isofile" -xr\!install.wim -o/media/$USER/"$label" > /dev/null
-	        echo "Mount install disk image..."
-	        sudo mkdir -p /mnt/isomount && sudo mount -o loop "$isofile" /mnt/isomount
-	        echo "Split install archive for FAT32..."
-	        wimsplit /mnt/isomount/sources/install.wim /media/$USER/"$label"/sources/install.swm 3800 > /dev/null
-	        echo "Unmount install disk image..."
-	        sudo umount /mnt/isomount && sudo rm -d /mnt/isomount
+	if [[ "$haveiso" == "true" ]]; then
+	   if   [[ $fstyp == "FAT32" ]]; then
+	        winvolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
+	        sudo mkdir /mnt/winvolume
+	        sudo mount -o $winvolopts /dev/$drive"1" /mnt/winvolume
+ 	        if   [[ $wimsize -gt $(($gbyte * 4)) ]]; then
+ 	             extract_files "$isofile" /mnt/winvolume "true" "30" "10"
+	             if [[ "$usezenity" == "true" ]]; then echo "55"; printf "# "; fi
+	             echo "Mount install disk image..."
+	             sudo mkdir -p /mnt/isomount && sudo mount -o ro,loop "$isofile" /mnt/isomount
+	             split_install /mnt/isomount/sources/install.wim /mnt/winvolume/sources/install.swm 3800 "55"
+	             if [[ "$usezenity" == "true" ]]; then echo "80"; printf "# "; fi
+	             echo "Unmount install disk image..."
+	             sudo umount /mnt/isomount && sudo rm -d /mnt/isomount
+	        else
+	             extract_files "$isofile" /mnt/winvolume "false" "30" "4"
+	        fi
+	        sudo umount /mnt/winvolume && sudo rm -r /mnt/winvolume
+	        gio mount -d /dev/$drive"1"
 	   else
-	        echo "Extract Windows install files..."
-	        7z x "$isofile" -o/media/$USER/"$label" > /dev/null
+	        gio mount -d /dev/$drive"1"
+	        extract_files "$isofile" /media/$USER/"$label" "false" "30" "4"
 	   fi
 	   if [[ ! -e /media/$USER/"$label"/efi/boot/bootx64.efi ]]; then
-	      echo "Copy bootmgfw.efi to the EFI boot folder..." # This should only apply to Windows 7 media.
+	      if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi
+	      echo "Copy bootmgfw.efi to EFI path..." # This should only apply to Windows 7 media.
 	      7z e /media/$USER/"$label"/sources/install.$wimext Windows/Boot/EFI/bootmgfw.efi -o/media/$USER/"$label"/efi/boot > /dev/null && \
 	      mv /media/$USER/"$label"/efi/boot/bootmgfw.efi /media/$USER/"$label"/efi/boot/bootx64.efi
 	   fi
-	   echo "Flush device write buffer..."
-	   sudo blockdev --flushbufs /dev/$drive"1"
 	fi
-	echo "Finished!"
-	sleep 1
+	if   [[ "$haveiso" == "true" && "$usezenity" == "false" ]]; then
+	     read -p "Finished! Press any key to exit." -n1 -s
+	else
+	     if [[ "$usezenity" == "true" ]]; then echo "100"; printf "# "; fi
+	     echo "Finished!"
+	     if [[ "$usezenity" == "false" ]]; then sleep 1; fi
+	fi
+	) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs; else cat; fi
 else
-	echo "Unable to access drive:" $drive
-	echo
-	read -p "Press any key to continue... " -n1 -s
+	if   [[ "$usezenity" == "true" ]]; then
+	     zenity --error --title="Device Error" --text="Unable to access disk: $drive."
+	else
+	     echo "Unable to access drive:" $drive
+	     echo
+	     read -p "Press any key to continue... " -n1 -s
+	fi
 	exit 1
 fi
