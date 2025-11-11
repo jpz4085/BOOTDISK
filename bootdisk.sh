@@ -956,14 +956,28 @@ fi
 
 checksum () {
 clear
-echo "     Verify SHA-1 checksum of an ISO file     "
-echo "----------------------------------------------"
-read -p "Enter path to Windows ISO file: " file
+if [[ "$usezenity" == "false" ]]; then
+   echo "     Verify SHA-1 checksum of an ISO file     "
+   echo "----------------------------------------------"
+fi
+if   [[ "$usezenity" == "true" ]]; then
+     file=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     read -p "Enter path to Windows ISO file: " file
+fi
+(
+if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 echo "Calculating checksum..."
 isosum=$(shasum "$file" | awk '{print $1}')
+if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 echo "Searching on adguard.net..."
 python3 -m webbrowser "https://sha1.rg-adguard.net/search.php?sha1=$isosum"
-read -p "Press any key to continue... " -n1 -s
+) | if [[ "$usezenity" == "true" ]]; then \
+    zenity --progress --pulsate --title="Verify SHA-1 Checksum" --auto-close; else cat; fi
+if [[ "$usezenity" == "false" ]]; then
+   read -p "Press any key to continue... " -n1 -s
+fi
 }
 
 extractdos () {
