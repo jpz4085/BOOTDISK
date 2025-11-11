@@ -968,11 +968,72 @@ read -p "Press any key to continue... " -n1 -s
 
 extractdos () {
 clear
-echo "     Extract MS-DOS 8.0 files     "
-echo "----------------------------------"
-read -p "Enter path to diskcopy.dll: " file
-echo
-(cd $resdir/Support; ./extract_msdos.sh "$file")
+if [[ "$usezenity" == "false" ]]; then
+   echo "     Extract MS-DOS 8.0 files     "
+   echo "----------------------------------"
+fi
+file="diskcopy.dll"
+sym_server_agent='Microsoft-Symbol-Server/10.0.0.0'
+diskcopy_url='https://msdl.microsoft.com/download/symbols/diskcopy.dll/54505118173000/diskcopy.dll'
+# Microsoft symbol server curl reference: https://pete.akeo.ie/2024/06/downloading-signtoolexe.html
+if   [[ ! -f $resdir/Support/diskcopy.dll && $have_msdos == "false" ]]; then
+     if   [[ "$usezenity" == "true" ]]; then
+          if   zenity --question --title="Download MS-DOS 8.0 Image" \
+               --text="Would you like to download diskcopy.dll from Microsoft?"; then
+               if ! curl -L -A $sym_server_agent $diskcopy_url -o $resdir/Support/diskcopy.dll 2> /dev/null; then
+                    zenity --height=100 --width=250 --error --title="Download Failed" \
+                    --text="Unable to download diskcopy.dll.\nPlease select the file and try again."
+                    return
+               fi
+          else
+               file=$(zenity --file-selection --title="Select the diskcopy library" --file-filter="DLL Files|*.dll" 2> /dev/null)
+               if [[ $? -ne 0 ]]; then return; fi
+          fi
+     else
+          read -p "Would you like to download diskcopy.dll from Microsoft [Y/N]? " getdcopy
+          getdcopy=${getdcopy^^}
+          while [[ $getdcopy != "Y" && $getdcopy != "N" ]]; do
+                echo -e "${RED}Invalid entry. Try again.${NC}"
+                read -p "Would you like to download diskcopy.dll from Microsoft [Y/N]? " getdcopy
+                getdcopy=${getdcopy^^}
+          done
+          if   [[ $getdcopy == "Y" ]]; then
+               if ! curl -L -A $sym_server_agent $diskcopy_url -o $resdir/Support/diskcopy.dll 2> /dev/null; then
+                    echo "Unable to download diskcopy.dll."
+                    echo "Please provide a path to the file."
+                    echo
+                    read -p "Press any key to continue... " -n1 -s
+                    return
+               fi
+          else
+               read -p "Enter path to diskcopy.dll: " file
+               echo
+          fi
+     fi
+elif [[ $have_msdos == "true" ]]; then
+     if   [[ "$usezenity" == "true" ]]; then
+          zenity --error --title="Actions Complete" --text="The MS-DOS files are already installed."
+     else
+          echo "The MS-DOS files are already installed."
+          echo
+          read -p "Press any key to continue... " -n1 -s
+     fi
+     return
+fi
+
+(cd $resdir/Support; ./extract_msdos.sh "$file" $usezenity)
+
+if [[ $? -ne 0 ]]; then extdoserr="true"; else extdoserr="false"; fi
+
+if [[ "$usezenity" == "true" ]]; then
+   if   [[ $extdoserr == "true" ]]; then
+        zenity --height=80 --width=230 --error --title="Installation Failed" \
+               --text="MS-DOS files were not installed."
+   else
+        zenity --height=100 --width=230 --info --title="Installation Succeeded" \
+               --text="MS-DOS files installed successfully."
+   fi
+fi
 }
 
 customize () {
@@ -1235,6 +1296,14 @@ else
     wimtools="false"
 fi
 
+# Check if the MS-DOS system files are installed.
+if   [[ -f $resdir/MS-DOS/Files/MSDOS.SYS && -f $resdir/MS-DOS/Files/IO.SYS &&
+        -f $resdir/MS-DOS/Files/COMMAND.COM && -f $resdir/MS-DOS/Files/AUTOEXEC.BAT ]]; then
+     have_msdos="true"
+else
+     have_msdos="false"
+fi
+
 # Download UEFI:NTFS bootloader if missing or outdated.
 uefint_url="https://raw.githubusercontent.com/pbatard/rufus/master/res/uefi/uefi-ntfs.img"
 uefint_commit_url="https://api.github.com/repos/pbatard/rufus/commits?path=res/uefi/uefi-ntfs.img&page=1&per_page=1"
@@ -1248,7 +1317,7 @@ fi
 
 # Display menu for installed options.
 if   [[ "$mtools" == "true" && "$biosmode" == "true" ]]; then
-     if [[ -e $resdir/MS-DOS/Files/COMMAND.COM ]]; then
+     if [[ $have_msdos == "true" ]]; then
 	  menu_full
      else
 	  menu_standard

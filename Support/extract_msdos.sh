@@ -15,6 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+libfile="$1"
+usegui="$2"
+
 blocksize () {
     o=$1  # image offset
     s=$2  # image size
@@ -30,12 +33,14 @@ blocksize () {
     echo $o # block size as GCD
 }
 
-if  [[ -e "$1"  ]]; then
-    hexoffset=`xxd -u -c 4 "$1" | grep 'EB3C 902A' | awk '{sub(/:$/,"",$1); print $1}'`
+if  [[ -e "$libfile"  ]]; then
+    hexoffset=`xxd -u -c 4 "$libfile" | grep 'EB3C 902A' | awk '{sub(/:$/,"",$1); print $1}'`
     if [[ ! $hexoffset ]]; then
-       echo "Unable to find floppy disk image in file."
-       echo
-       read -p "Press any key to continue... " -n1 -s
+       if [[ "$usegui" == "false" ]]; then
+          echo "Unable to find floppy disk image in file."
+          echo
+          read -p "Press any key to continue... " -n1 -s
+       fi
        exit 1
     fi
    
@@ -45,9 +50,9 @@ if  [[ -e "$1"  ]]; then
     skip=$(($offset/$bytes))
     count=$(($imgsize/$bytes))
 
-    echo "Extract floppy disk image..."
-    dd if="$1" of=bootdisk.img bs=$bytes skip=$skip count=$count 2> /dev/null
-    echo "Extract and patch system files (sudo required)..."
+    if [[ "$usegui" == "false" ]]; then echo "Extract floppy disk image..."; fi
+    dd if="$libfile" of=bootdisk.img bs=$bytes skip=$skip count=$count 2> /dev/null
+    if [[ "$usegui" == "false" ]]; then echo "Extract and patch system files (sudo required)..."; fi
     sudo 7z x bootdisk.img -o../MS-DOS/Files > /dev/null
     sudo chmod -R 755 ../MS-DOS/Files
     sudo chmod 644 ../MS-DOS/Files/MSDOS.SYS ../MS-DOS/Files/IO.SYS
@@ -57,11 +62,11 @@ if  [[ -e "$1"  ]]; then
     sudo touch -r ../MS-DOS/Files/MSDOS.SYS ../MS-DOS/Files/COMMAND.COM ../MS-DOS/Files/IO.SYS
     sudo 7z e doslfn.zip *.tbl *.gbk doslfn.com -o../MS-DOS/Files/SYSTEM > /dev/null
     printf '@echo off\r\nset PATH=.;\;\SYSTEM\r\nDOSLFN.COM\r\n' | sudo tee ../MS-DOS/Files/AUTOEXEC.BAT > /dev/null
-    echo "Delete floppy disk image..."
+    if [[ "$usegui" == "false" ]]; then echo "Delete floppy disk image..."; fi
     rm bootdisk.img
-    echo "Finished!"
-    echo
-    sleep 2
+    if [[ "$usegui" == "false" ]]; then echo "Finished!"; fi
+    if [[ "$usegui" == "false" ]]; then sleep 2; fi
+    exit 0
 else
     echo "Unable to access the specified file."
     echo
