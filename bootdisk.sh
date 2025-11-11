@@ -511,7 +511,7 @@ echo "--------------------------------"
 }
 
 windowstogo () {
-wtgtitle
+if [[ "$usezenity" == "false" ]]; then wtgtitle; fi
 if [[ "$system" == "Darwin" ]]; then
    read -p "Enter target disk [disk#]: " tgtdsk
    while [[ $tgtdsk != *"disk"* ]]; do
@@ -519,65 +519,100 @@ if [[ "$system" == "Darwin" ]]; then
          read -p "Enter target disk [disk#]: " tgtdsk
    done
 elif [[ "$system" == "Linux" ]]; then
-     read -p "Enter target disk [sd*]: " tgtdsk
-     while [[ $tgtdsk != *"sd"* ]]; do
-           echo -e "${RED}Invalid disk name. Try again.${NC}"
-           read -p "Enter target disk [sd*]: " tgtdsk
+     if   [[ "$usezenity" == "true" ]]; then
+          tgtdsk=$(eval zenity $zendevargs ${devices[@]})
+          if [[ $? -ne 0 ]]; then return; fi
+     else
+          read -p "Enter target disk [sd*]: " tgtdsk
+          while [[ $tgtdsk != *"sd"* ]]; do
+                echo -e "${RED}Invalid disk name. Try again.${NC}"
+                read -p "Enter target disk [sd*]: " tgtdsk
+          done
+     fi
+fi
+
+if   [[ "$usezenity" == "true" ]]; then
+     image=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     read -p "Enter path to ISO file: " image
+     while [[ ! -f "$image" || "$image" != *.iso ]]; do
+           echo -e "${RED}Invalid file. Please try again.${NC}"
+           read -p "Enter path to ISO file: " image
      done
 fi
-read -p "Enter path to ISO file: " image
-while [[ ! -f "$image" || "$image" != *.iso ]]; do
-      echo -e "${RED}Invalid file. Please try again.${NC}"
-      read -p "Enter path to ISO file: " image
-done
-echo "Mount install disk image..."
+
 if   [[ "$system" == "Darwin" ]]; then
      wimfile="/tmp/isomount/sources/install.wim"
+     echo "Mount install disk image..."
      hdiutil attach "$image" -mountpoint /tmp/isomount -nobrowse > /dev/null
 elif [[ "$system" == "Linux" ]]; then
      wimfile="/mnt/isomount/sources/install.wim"
      if [[ ! -f $wimfile ]]; then
+        if   [[ "$usezenity" == "true" ]]; then
+             zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	     if [[ $? -ne 0 ]]; then return; fi
+        else
+             echo "Mount install disk image (sudo required)..."
+        fi
         sudo mkdir -p /mnt/isomount
-        sudo mount -o loop "$image" /mnt/isomount
+        sudo mount -o ro,loop "$image" /mnt/isomount
      fi
 fi
 if [[ ! -f $wimfile ]]; then
-   echo -e "${RED}Unable to find install archive in DVD image.${NC}"
-   echo
-   read -p "Press any key to continue... " -n1 -s
+   if   [[ "$usezenity" == "true" ]]; then
+        zenity --error --title="File Error" --text="Unable to find install archive in DVD image."
+   else
+        echo -e "${RED}Unable to find install archive in DVD image.${NC}"
+        echo
+        read -p "Press any key to continue... " -n1 -s
+   fi
    return 1
 fi
 
-wtgtitle
-idxnum=$(wiminfo $wimfile | grep -E '^(Index:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g;s/[0-9]$/&\./g')
 prodname=$(wiminfo $wimfile | grep -E '^(Name:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g')
-echo "Windows products on $(basename "$image")"
-paste <(printf %s "$idxnum") <(printf %s "$prodname")
-read -p "Enter Choice (q to Quit): " index
-while [[ $idxnum != *$index* && $index != "q" ]]; do
-      echo -e "${RED}Invalid entry. Please try again.${NC}"
-      read -p "Enter Choice: " index
-done
+if   [[ "$usezenity" == "true" ]]; then
+     zenwtgargs='--list --radiolist --height=670 --title="BOOTDISK: Windows To Go" --text="Select which Windows version to install:" --hide-header --hide-column=2 --print-column=2 --column="Select" --column="ID" --column="Windows Version"'
+     idxnum=$(wiminfo $wimfile | grep -E '^(Index:)' | cut -d " " -f2- | sed 's/^[[:space:]]*/FALSE /g')
+     readarray -t versions <<< $(paste <(printf %s "$idxnum") <(printf %s "$prodname") | awk '{printf("%s %2s ", $1, $2); printf"\""; for (i = 3; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
+     index=$(eval zenity $zenwtgargs ${versions[@]})
+     if [[ $? -ne 0 ]]; then index="q"; fi
+else
+     wtgtitle
+     idxnum=$(wiminfo $wimfile | grep -E '^(Index:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g;s/[0-9]$/&\./g')
+     echo "Windows products on $(basename "$image")"
+     paste <(printf %s "$idxnum") <(printf %s "$prodname")
+     read -p "Enter Choice (q to Quit): " index
+     while [[ $idxnum != *$index* && $index != "q" ]]; do
+           echo -e "${RED}Invalid entry. Please try again.${NC}"
+           read -p "Enter Choice: " index
+     done
+fi
 
 if [[ "$index" != "q" ]]; then
    echo
-   (cd $resdir/Windows; ./windowstogo.sh $system $wimfile $index $tgtdsk)
+   (cd $resdir/Windows; ./windowstogo.sh $system $wimfile $index $tgtdsk $usezenity)
 fi
 
-if [[ ! $? -eq 0 ]]; then wtgerror="true"; else wtgerror="false"; fi
+if [[ $? -ne 0 ]]; then wtgerror="true"; else wtgerror="false"; fi
 rm -f /tmp/wimfile_errors.txt
-echo "Unmount install disk image..."
+if [[ "$usezenity" == "false" ]]; then
+   echo "Unmount install disk image..."
+fi
 if   [[ "$system" == "Darwin" ]]; then
      hdiutil detach /tmp/isomount > /dev/null
 elif [[ "$system" == "Linux" ]]; then
      sudo umount /mnt/isomount && sudo rm -d /mnt/isomount
 fi
-if  [[ $wtgerror == "true" ]]; then
-    echo
-    read -p "Press any key to continue... " -n1 -s
-else
-    echo "Finished!"
-    sleep 2
+if [[ "$usezenity" == "false" ]]; then
+   if  [[ $wtgerror == "true" ]]; then
+       echo
+       read -p "Press any key to continue... " -n1 -s
+       return 1
+   else
+       echo "Finished!"
+       sleep 2
+   fi
 fi
 }
 

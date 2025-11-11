@@ -24,6 +24,7 @@ system="$1"
 wimfile="$2"
 image="$3"
 drive="$4"
+usegui="$5"
 mbyte=1048576
 biosmode="false"
 hivepath="Windows/System32/config/SYSTEM"
@@ -31,6 +32,13 @@ winrepath="Windows/System32/Recovery/Winre.wim"
 prodname=$(wiminfo "$wimfile" $image | grep -m 1 Name: | sed "s/^.*: *//" | awk '{printf ("%s %s", $1, $2)}')
 
 if [[ ! -z $(command -v ms-sys) ]]; then biosmode="true"; fi #Legacy bootable.
+
+if  [[ "$usegui" == "true" ]]; then
+    usezenity="true"
+    zenprogargs='--progress --no-cancel --title="BOOTDISK: Windows To Go"'
+else
+    usezenity="false"
+fi
 
 endian () {
 v=$1
@@ -105,17 +113,23 @@ if    [[ -e /dev/$drive && $system == "Darwin" ]]; then
       rm "/Volumes/UFD-Windows/$winrepath"
       exit 0
 elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
-      echo "Unmount volumes..."
-      umount /dev/$drive?
-      echo "Erase MBR/GPT structures (sudo required)..."
+      if [[ "$usezenity" == "false" ]]; then
+         echo "Reading device information..."
+      fi
       sudo chmod o+rw /dev/$drive
       devblksz=$(blockdev --getss /dev/$drive)
       disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
       mibblksz=$(($mbyte / $devblksz))
       disk_offset=$(($disk_length - $mibblksz))
+      (
+      echo "Unmount volumes..."
+      umount /dev/$drive?
+      if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
+      echo "Erase MBR/GPT structures..."
       dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
       dd if=/dev/zero of=/dev/$drive bs=1M seek=351 count=1 2> /dev/null
       dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
+      if [[ "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
       echo "Prepare disk and make bootable..."
       echo -e ',350M,c,*\n,,7' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
       sudo chmod o+rw /dev/$drive"1"
@@ -126,27 +140,71 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
          ms-sys -7 /dev/$drive > /dev/null && sleep 1
          ms-sys -8 /dev/$drive"1" > /dev/null && sleep 1
       fi
+      if [[ "$usezenity" == "true" ]]; then
+         echo "40"; echo "# Applying image to partition..."
+      fi
       wimapply "$wimfile" $image /dev/$drive"2" 2> /tmp/wimfile_errors.txt
-      if [[ ! $? -eq 0 ]]; then cat /tmp/wimfile_errors.txt; exit 1; fi
+      if [[ $? -ne 0 ]]; then
+         if   [[ "$usezenity" == "true" ]]; then
+              errmsg=$(cat /tmp/wimfile_errors.txt)
+              echo "# Unable to apply image!"
+              zenity --error --title="Imaging Failure" --text="$errmsg" 2> /dev/null
+         else
+              cat /tmp/wimfile_errors.txt
+         fi
+         exit 1
+      fi
+      if [[ "$usezenity" == "true" ]]; then echo "60"; printf "# "; fi
       echo "Mount the partitions..."
       gio mount -d /dev/$drive"1"
       gio mount -d /dev/$drive"2"
       sysmount=$(lsblk -n -o MOUNTPOINT /dev/$drive"1")
       winmount=$(lsblk -n -o MOUNTPOINT /dev/$drive"2")
+      if [[ "$usezenity" == "true" ]]; then echo "70"; printf "# "; fi
       echo "Setup the Windows boot files..."
       bcdargs=("-f" "both" "$winmount" "-s" "$sysmount" "-n" "$prodname")
-      bcd-sys "${bcdargs[@]}"
-      if [[ ! $? -eq 0 ]]; then exit 1; fi
+      if   [[ "$usezenity" == "true" ]]; then
+           zenity --password --title="Password Authentication" | sudo -Sv
+           errmsg=$(bcd-sys "${bcdargs[@]}")
+      else
+           bcd-sys "${bcdargs[@]}"
+      fi
+      if   [[ ! $? -eq 0 ]]; then
+           if [[ "$usezenity" == "true" ]]; then
+              echo "# Unable to create boot files!"
+              zenity --error --title="BCD-SYS Failure" --text="$errmsg" 2> /dev/null
+           fi
+           exit 1
+      fi
+      if [[ "$usezenity" == "true" ]]; then echo "75"; printf "# "; fi
       echo "Set internal disks to offline..."
-      hivexregedit --merge --prefix SYSTEM "$winmount/$hivepath" Scripts/Disable_Internal_Drives.reg
-      if [[ ! $? -eq 0 ]]; then exit 1; fi
+      if   [[ "$usezenity" == "true" ]]; then
+           errmsg=$(hivexregedit --merge --prefix SYSTEM "$winmount/$hivepath" Scripts/Disable_Internal_Drives.reg 2>&1) 
+      else
+           hivexregedit --merge --prefix SYSTEM "$winmount/$hivepath" Scripts/Disable_Internal_Drives.reg
+      fi
+      if [[ ! $? -eq 0 ]]; then
+         if [[ "$usezenity" == "true" ]]; then
+            echo "# Unable to apply registry policy!"
+            zenity --error --title="Registry Update Failure" --text="$errmsg" 2> /dev/null
+         fi
+         exit 1
+      fi
+      if [[ "$usezenity" == "true" ]]; then echo "80"; printf "# "; fi
       echo "Remove the Windows Recovery Environment..."
       rm "$winmount/$winrepath"
+      if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi
       echo "Flush device write buffer..."
       sudo blockdev --flushbufs /dev/$drive"1"
       sudo blockdev --flushbufs /dev/$drive"2"
+      if [[ "$usezenity" == "true" ]]; then echo "100"; echo "# Finished!"; fi
+      ) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs; else cat; fi
       exit 0
 else
-      echo "Unable to access drive:" $drive
+      if   [[ "$usezenity" == "true" ]]; then
+           zenity --error --title="Device Error" --text="Unable to access disk: $drive."
+      else
+           echo "Unable to access drive:" $drive
+      fi
       exit 1
 fi
