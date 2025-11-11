@@ -27,12 +27,14 @@ pstpart="$5"
 datapart="$6"
 fstyp="$7"
 label="$8"
+usegui="$9"
 erase="false"
 persist="false"
 hasgrub="false"
 usblabel="false"
 overlay="false"
 pupsave="false"
+pipeview="false"
 fatsz=${fstyp:3}
 
 kbyte=1024
@@ -44,6 +46,15 @@ datapartsz=0
 
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+if  [[ "$usegui" == "true" ]]; then
+    usezenity="true"
+    zenprogargs='--width=300 --progress --no-cancel --title="BOOTDISK: Linux/Other"'
+else
+    usezenity="false"
+fi
+
+if [[ ! -z $(command -v pv) ]]; then pipeview="true"; fi
 
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT16" ]]; then pty=e; fi #FAT16 LBA
@@ -59,17 +70,25 @@ if [[ $prtshm == "GPT" ]]; then
    fi
    erase="true"
 fi
-if [[ $prtshm == "ERASE" ]]; then erase="true"; fi    #Wipe disk and apply image.
-if [[ $prtshm == "CURRENT" ]]; then erase="false"; fi #Just extract image to disk.
+if [[ $prtshm == "ERASE" ]]; then
+   erase="true"                         #Wipe disk and apply image.
+   if [[ $pipeview == "false" ]]; then
+      zenprogargs+=' --pulsate'         #No progress bar without pipeviewer.
+   fi
+fi
+if [[ $prtshm == "CURRENT" ]]; then
+   erase="false"                      #Just extract image to disk.
+fi
 
 isolabel=$(file "$isofile" | awk -F"'" '{for (i=2; i<=NF; i+=2) print $i}')
+isoextsz=$(7z l "$isofile" | grep 'files,' | awk '{print $3}') #Size of ISO contents.
+isoimgsz=$(7z l "$isofile" \[BOOT\]/2-Boot-NoEmul.img | grep 'files' | awk '{print $1}') #Size of ISO boot image.
 
 if [[ "$pstpart" != "N/A" ]]; then
    persist="true"
    mkexfat="false"
    extlabel="writable"
    linuxpty="0FC63DAF-8483-4772-8E79-3D69D8477DE4" #Linux filesystem
-   isoextsz=$(7z l "$isofile" | grep 'files,' | awk '{print $3}') #Size of ISO contents.
    if echo "$isolabel" | grep -qiE "d-live"; then extlabel="persistence"; fi
    if echo "$isolabel" | grep -qiE "CDROM"; then pupsave="true"; fi
    if [[ "$datapart" == "true" && ! -z $(command -v mkfs.exfat) ]]; then mkexfat="true"; fi
@@ -113,19 +132,103 @@ esac
 }
 
 apply_image () {
-echo "Applying image to disk..."
-dd if="$1" of=/dev/"$2" bs="$3" conv=fsync oflag=direct status=none
-echo "Finished!" && sleep 2
-exit 0
+ddargs="conv=fsync oflag=direct status=none"
+if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+if   [[ $pipeview == "true" ]]; then
+     if   [[ "$usezenity" == "true" ]]; then
+          echo "Applying image to disk..."
+          (pv -n "$1" | dd of=/dev/"$2" bs="$3" $ddargs) 2>&1
+     else
+          pv -N 'Applying image to disk' -peb "$1" | dd of=/dev/"$2" bs="$3" $ddargs
+     fi
+else
+     echo "Applying image to disk..."
+     dd if="$1" of=/dev/"$2" bs="$3" $ddargs
+fi
+if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+echo "Finished!"
+return 0
 }
 
 extract_files () {
-echo "Extract files to disk..."
-if   [[ $fstyp == "EXT4" ]] ; then
-     sudo 7z x "$1" -y -xr\!\[BOOT\] -o"$2" > /dev/null
-     sync
-else
-     7z x "$1" -y -xr\!\[BOOT\] -o"$2" > /dev/null
+isopct=0
+valpct="$3"
+divpct="$4"
+if   [[ $system == "Darwin" ]]; then
+     fsavail=$(df -k "$2" | awk '{print $4}' | tail -1)
+elif [[ $system == "Linux" ]]; then
+     bufpct=0
+     fsavail=$(df --output=avail "$2" | tail -1)
+fi
+fsbegin=$(($fsavail * $kbyte))
+isoextsz=$(($isoextsz - $isoimgsz))
+
+coproc XISO (7z x "$1" -y -xr\!\[BOOT\] -o"$2" > /dev/null)
+
+while kill -0 $XISO_PID 2> /dev/null; do
+      if   [[ $system == "Darwin" ]]; then
+           fsavail=$(df -k "$2" | awk '{print $4}' | tail -1)
+      elif [[ $system == "Linux" ]]; then
+           fsavail=$(df --output=avail "$2" | tail -1)
+      fi
+      if [[ "$usezenity" == "true" ]]; then echo "# Extracting ISO archive..."; fi
+      isopct=$(((($fsbegin - ($fsavail * $kbyte)) * 100) / $isoextsz))
+      if   [[ "$usezenity" == "true" ]]; then
+           if   [[ $isopct -eq 100 && "$erase" == "false" ]]; then
+                isoout=99
+           else
+                if   [ $divpct -gt 1 ]; then
+                     isoout=$(($valpct + ($isopct / $divpct)))
+                else
+                     isoout=$(($isopct / $divpct))
+                fi
+           fi
+           echo $isoout
+      else
+           echo -ne "Extract ISO archive:" $isopct"%"\\r
+      fi
+done
+
+if [[ "$usezenity" == "false" ]]; then
+   echo "Extract ISO archive: 100%"
+fi
+
+if [[ $system == "Linux" ]] ; then
+   coproc BUFF (sync)
+   
+   if [[ $fstyp == "FAT"* ]] ; then
+      sudo -v #Refresh credentials for unmount.
+   fi
+  
+   while kill -0 $BUFF_PID 2> /dev/null; do
+         if [[ "$usezenity" == "true" ]]; then
+            echo "# Writing files to disk..."  
+         fi
+         dirty=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+         bufpct=$(((($isoextsz - ($dirty * $kbyte)) * 100) / $isoextsz))
+         if   [[ "$usezenity" == "true" ]]; then
+              if   [ $divpct -gt 1 ]; then
+                   bufout=$(($isoout + ($bufpct / $divpct)))
+                   valpct=$bufout
+              else
+                   bufout=$(($bufpct / $divpct))
+              fi
+              echo $bufout
+         else
+              echo -ne "Write files to disk:" $bufpct"%"\\r
+         fi
+   done
+
+   if [[ "$usezenity" == "false" ]]; then
+      echo "Write files to disk: 100%"
+   fi
+   
+   if [[ $fstyp == "EXT4" ]] ; then
+      if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+      echo "Set owner and permissions..."
+      sudo chown -R root:root "$2"
+      sudo chmod -R 777 "$2"
+   fi
 fi
 }
 
@@ -164,6 +267,7 @@ do
     fi
     lnum_appnd=$(grep -nwi -m 1 "${configs[$key]}" -e 'append' | awk -F: '{print $1}')
     if   [[ ! -z "$lnum_appnd" ]]; then
+         if [[ "$usezenity" == "true" ]]; then echo "60"; printf "# "; fi
          echo "Add $pstname option to $(basename "${configs[$key]}")"
          if   [[ $system == "Darwin" ]]; then
               sed -i '' "$lnum_appnd""s/$/ $pstarg/" "${configs[$key]}"
@@ -171,6 +275,7 @@ do
               sed -i "$lnum_appnd""s/$/ $pstarg/" "${configs[$key]}"
          fi
     else
+         if [[ "$usezenity" == "true" ]]; then echo "65"; printf "# "; fi
          echo "Add $pstname option to $(basename "${configs[$key]}")"
          if   [[ $system == "Darwin" ]]; then
               sed -i '' "$lnum_vmlz""s/$/ $pstarg/" "${configs[$key]}"
@@ -193,11 +298,23 @@ if [[ $overlay == "true" ]]; then
         volfreebytes=$(diskutil info "$2" | grep "Volume Free Space:" | awk '{print $6}' | sed 's/(//')
         volfreeblks=$(($volfreebytes / $mbyte))
    fi
-   echo "Creating persistent overlay image..."
-   sudo dd if=/dev/zero of="$2"/persistence.img bs="$3" count=$volfreeblks status=none
+   if [[ "$usezenity" == "true" ]]; then echo "70"; printf "# "; fi
+   if   [[ $system == "Darwin" && $pipeview == "true" ]]; then
+        if   [[ "$usezenity" == "true" ]]; then
+             echo "Creating persistent overlay image..."
+             pv < /dev/zero -nYSs $volfreeblks"M" -o "$2"/persistence.img 2>&1 | awk '{print int(70 + $1 / 10)}'
+        else
+             pv < /dev/zero -N 'Creating persistent overlay image' -F '%N %{progress-amount-only}' -YSs $volfreeblks"M" -o "$2"/persistence.img
+        fi
+   else
+        echo "Creating persistent overlay image..."
+        sudo dd if=/dev/zero of="$2"/persistence.img bs="$3" count=$volfreeblks status=none
+   fi
+   if [[ "$usezenity" == "true" ]]; then echo "80"; printf "# "; fi
    echo "Formatting persistent overlay image..."
    sudo mkfs.ext4 -q -L persistence "$2"/persistence.img > /dev/null
    if   [[ $system == "Linux" ]]; then
+        if [[ "$usezenity" == "true" ]]; then echo "85"; printf "# "; fi
         echo "Creating folders on the persistent image..."
         imgblkdev=$(sudo losetup --find --show "$2"/persistence.img)
         sleep 3 && gio mount -d "$imgblkdev"
@@ -247,12 +364,14 @@ fi
 mkgrubefi () {
 echo "Move grub boot folders to EFI..."
 if   [[ $fstyp == "EXT4" ]] ; then
-     cp -pr "$1"/EFI "$2" && sudo rm -r "$1"/EFI
+     mv "$1"/EFI "$2"
      mkdir -p "$2"/boot/grub
      cp "$1"/"$efigrubcfg" "$2"/boot/grub/grub.cfg
      vsn=$(lsblk -o UUID /dev/$drive"$isopart" | awk 'NR==2')
      idfile="$(uuidgen).id"
-     sudo touch "$1/$idfile"
+     touch "$1/$idfile"
+     sudo chown root:root "$1/$idfile"
+     sudo chmod 777 "$1/$idfile"
      sed -i 's/main_uuid="%UUID%"/main_uuid="'$vsn'"/' "$2"/boot/grub/grub.cfg
      sed -i 's/id_file="%ID_FILE%"/id_file="\/'$idfile'"/' "$2"/boot/grub/grub.cfg
 elif 
@@ -369,7 +488,9 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
             sudo chmod o+rw /dev/$drive
             dd if=/dev/zero of=/dev/$drive bs=1m count=2 2> /dev/null
             dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
-            apply_image "$isofile" "$drive" "4m"
+            apply_image "$isofile" "$drive" "4m" && $ignore_btn &> /dev/null
+            if [[ "$usezenity" == "false" ]]; then sleep 2; fi
+            exit 0
          fi
          echo "Partition and format disk (sudo required)..."
          hds=$(sudo fdisk /dev/$drive | grep "geometry:" | awk '{print $4}' | cut -f2 -d"/")
@@ -550,7 +671,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
          fi
          if [[ "$persist" == "true" ]]; then
             if  [[ "$pupsave" == "true" ]]; then
-                echo "SS_ID=$extlabel" | sudo tee /Volumes/"$label"/SAVESPEC > /dev/null
+                echo "SS_ID=$extlabel" > /Volumes/"$label"/SAVESPEC
             else
                 config_persist /Volumes/"$label" /Volumes/"$extlabel" "1m"
             fi
@@ -565,16 +686,29 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
          exit 0
       fi
       if  [[ $system == "Linux" ]]; then
-          echo "Reading device information (sudo required)..."
-          sudo chmod o+rw /dev/$drive
-          devblksz=$(blockdev --getss /dev/$drive)
-          disk_size=$(blockdev --getsize64 /dev/$drive)
-          disk_length=$(sfdisk -l /dev/$drive 2> /dev/null | grep "Disk /dev/$drive:" | awk '{print $7}')
+          if   [[ "$pstpart" == "getmaxsize" ]]; then
+               disk_size=$(lsblk --nodeps -nbo SIZE /dev/$drive)
+          else
+               if   [[ "$usezenity" == "true" ]]; then
+	            zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	            if [[ $? -ne 0 ]]; then exit 1; fi
+	       else
+	            echo "Reading device information (sudo required)..."
+               fi
+               sudo chmod o+rw /dev/$drive
+               devblksz=$(blockdev --getss /dev/$drive)
+               disk_size=$(blockdev --getsize64 /dev/$drive)
+               disk_length=$(sfdisk -l /dev/$drive 2> /dev/null | grep "Disk /dev/$drive:" | awk '{print $7}')
+          fi
 	  
 	  if [[ $fstyp == "FAT16" && $disk_size -ge $(($gbyte * 2)) ]]; then
-	     echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
-	     echo
-	     read -p "Press any key to continue... " -n1 -s
+	     if   [[ "$usezenity" == "true" ]]; then
+	          zenity --error --title="Format Error" --text="Format as FAT32 when disk is greater than 2.0GB."
+	     else
+	          echo -e "${YELLOW}Format as FAT32 when disk is greater than 2.0GB.${NC}"
+	          echo
+	          read -p "Press any key to continue... " -n1 -s
+	     fi
 	     exit 1
 	  fi
 
@@ -587,19 +721,29 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	     isopartsz=$(($isomibsz + 50))         #ISO partition with padding
 	     isopartbytes=$(($isopartsz * $mbyte)) #ISO partition in bytes
 	     if [[ "$pstpart" != "+" ]]; then
-                unit_sizes "$pstpart"
-                lnxpartszbytes=$((${pstpart%?} * $baseunit))
                 usedbytes=$(($isopartbytes + $mbyte)) #ISO partition and offset
                 if [[ $hasgrub == "true" ]]; then
                    usedbytes=$(($usedbytes + $mbyte)) #BIOS Boot Partition
                 fi
                 freebytes=$(($disk_size - $usedbytes))
+                if   [[ "$pstpart" == "getmaxsize" ]]; then
+                     echo $(($freebytes / $mbyte))
+                     exit 0
+                else
+                     unit_sizes "$pstpart"
+                     lnxpartszbytes=$((${pstpart%?} * $baseunit))
+                fi
                 if [[ $lnxpartszbytes -ge $freebytes ]]; then
                    available=$(($freebytes / $errunit))
-                   echo -e "${YELLOW}Insufficient free space for persistent partition.${NC}"
-                   echo "Please specifiy a maximum size of up to $available$errsym."
-                   echo
-                   read -p "Press any key to continue... " -n1 -s
+                   if   [[ "$usezenity" == "true" ]]; then
+                        zenity --height=160 --width=375 --error --title="Disk Space Error" \
+                        --text="Insufficient free space for persistent partition.\nPlease specifiy a maximum size of up to $available$errsym."
+                   else
+                        echo -e "${YELLOW}Insufficient free space for persistent partition.${NC}"
+                        echo "Please specifiy a maximum size of up to $available$errsym."
+                        echo
+                        read -p "Press any key to continue... " -n1 -s
+                   fi
                    exit 1
                 fi
                 if [[ "$datapart" == "true" ]]; then
@@ -614,17 +758,29 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                              datapty=e; datafs="FAT16"
                         fi
                    else
-                        echo -e "${YELLOW}Insufficient space remaining for data partition.${NC}"
-                        echo
-                        read -p "Press any key to continue... " -n1 -s
+                        if   [[ "$usezenity" == "true" ]]; then
+                             zenity --error --title="Disk Space Error" \
+                             --text="Insufficient space remaining for data partition."
+                        else
+                             echo -e "${YELLOW}Insufficient space remaining for data partition.${NC}"
+                             echo
+                             read -p "Press any key to continue... " -n1 -s
+                        fi
                         exit 1
                    fi
                 fi
              fi
 	  fi
-
+	  (
 	  echo "Unmount volumes..."
 	  umount /dev/$drive?
+	  if [[ "$usezenity" == "true" ]]; then
+	     if   [[ $prtshm == "ERASE" ]]; then
+	          echo "0"; echo "# Initializing disk..."
+             else
+	          echo "10"; printf "# "
+	     fi
+	  fi
 	  echo "Erase MBR/GPT structures..."
           mibblksz=$(($mbyte / $devblksz))
           disk_offset=$(($disk_length - $mibblksz))
@@ -632,7 +788,10 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	  if   [[ $prtshm == "ERASE" ]]; then
 	       apply_image "$isofile" "$drive" "4M"
+           if [[ "$usezenity" == "false" ]]; then sleep 2; fi
+           exit 0
 	  fi
+	  if [[ "$usezenity" == "true" ]]; then echo "15"; printf "# "; fi
 	  echo "Partition and format disk..."
 	  if   [[ $prtshm == "MBR" ]]; then
 	       if   [[ "$persist" == "true" ]]; then
@@ -683,54 +842,93 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	        fi
 	     fi
 	  fi
+	  if [[ "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	  echo "Mount boot disk..." && sleep 1
-	  if [[ $fstyp == "EXT4" ]] ; then
-	     gio mount -d /dev/$drive"$efipart"
+	  if   [[ $fstyp == "EXT4" ]] ; then
+	       gio mount -d /dev/$drive"$efipart"
+	       gio mount -d /dev/$drive"$isopart"
+	       isovolpath="/media/$USER/$label"
+	       sudo chmod -R 777 "$isovolpath"
+	  else
+	       isovolpath="/mnt/isovolume"
+	       isovolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
+	       sudo mkdir $isovolpath
+	       sudo mount -o $isovolopts /dev/$drive"$isopart" $isovolpath
 	  fi
-	  gio mount -d /dev/$drive"$isopart"
 	  if [[ "$persist" == "true" ]]; then
 	     gio mount -d /dev/$drive"$extpart"
 	     if [[ $datapartsz != "0"  ]]; then
 	        gio mount -d /dev/$drive"$fatpart"
 	     fi
 	  fi
-	  extract_files "$isofile" /media/$USER/"$label"
+	  if [[ "$usezenity" == "true" ]]; then
+	     if   [[ "$persist" == "true" ]]; then
+	          pctval=40; pctdiv=10; echo "$pctval"
+	     else
+	          pctval=30; pctdiv=4; echo "$pctval"
+	     fi
+	  fi
+	  extract_files "$isofile" "$isovolpath" $pctval $pctdiv
+	  if [[ $fstyp == "FAT"* ]] ; then
+	     sudo umount $isovolpath && sudo rm -r $isovolpath
+	     gio mount -d /dev/$drive"$isopart"
+	  fi
 	  isolinuxdir=$(get_syslinux_path /media/$USER/"$label" isolinux)
 	  syslinuxdir=$(get_syslinux_path /media/$USER/"$label" syslinux)
 	  if   [[ ! -z "$isolinuxdir" && ! -z "$syslinuxdir" ]]; then
+	       if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	       echo "Remove unneeded isolinux files..."
-	       sudo rm -r "$isolinuxdir"
+	       rm -r "$isolinuxdir"
 	  elif [[ ! -z "$isolinuxdir" && -z "$syslinuxdir" ]]; then
+	       if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	       rename_isolinux "$(dirname "$isolinuxdir")"
 	  fi
 	  if [[ $fstyp == "EXT4" && -f /media/$USER/"$label"/"$efigrubcfg" ]]; then
+	     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	     mkgrubefi /media/$USER/"$label" /media/$USER/GRUB
 	  fi
 	  if [[ "$usblabel" == "true" ]]; then
+	     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	     update_cdlabel /media/$USER/"$label"
 	  fi
 	  if [[ "$persist" == "true" ]]; then
 	     if  [[ "$pupsave" == "true" ]]; then
-                 echo "SS_ID=$extlabel" | sudo tee /media/$USER/"$label"/SAVESPEC > /dev/null
+	         if [[ "$usezenity" == "true" ]]; then echo "60"; fi
+                 echo "SS_ID=$extlabel" > /media/$USER/"$label"/SAVESPEC
              else
                  config_persist /media/$USER/"$label" /media/$USER/"$extlabel" "1M"
              fi
 	  fi
 	  if [[ -f /media/$USER/"$label"/md5sum.txt ]]; then
+	     if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi
 	     checksum_files /media/$USER/"$label" md5sum sha256sum
 	  fi
 	  if [[ -f /media/$USER/"$label"/sha256sum.txt ]]; then
+	     if [[ "$usezenity" == "true" ]]; then echo "95"; printf "# "; fi
 	     checksum_files /media/$USER/"$label" sha256sum md5sum
 	  fi
-	  read -p "Finished! Press any key to exit." -n1 -s
+	  if   [[ "$usezenity" == "true" ]]; then
+	       echo "100"; echo "# Finished!"
+	  else
+	       read -p "Finished! Press any key to exit." -n1 -s
+	  fi
+	  ) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs; else cat; fi
 	  exit 0
       fi
 elif  [[ $erase == "false" && -e "$drive" ]]; then
-      extract_files "$isofile" "$drive"
-      echo "Finished!" && sleep 1
+      (
+      extract_files "$isofile" "$drive" "0" "1"
+      if [[ "$usezenity" == "true" ]]; then echo "100"; printf "# "; fi
+      echo "Finished!"
+      ) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs; else cat; fi
+      if [[ "$usezenity" == "false" ]]; then sleep 1; fi
 else
-      echo "Unable to access:" $drive
-      echo
-      read -p "Press any key to continue... " -n1 -s
+      if   [[ "$usezenity" == "true" ]]; then
+           zenity --error --title="Device Error" --text="Unable to access: $drive."
+      else
+	   echo "Unable to access:" $drive
+	   echo
+	   read -p "Press any key to continue... " -n1 -s
+      fi
       exit 1
 fi
