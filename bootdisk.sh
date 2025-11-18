@@ -1145,19 +1145,30 @@ fi
 
 customize () {
 clear
-echo "    Customize your Windows Installation    "
-echo "-------------------------------------------"
+if [[ "$usezenity" == "false" ]]; then
+   echo "    Customize your Windows Installation    "
+   echo "-------------------------------------------"
+fi
 if   [[ "$system" == "Darwin" ]]; then
      read -p "Enter path to Windows disk [/Volumes/Windows]: " windisk
 elif [[ "$system" == "Linux" ]]; then
-     read -p "Enter path to Windows disk [/media/$USER/Windows]: " windisk
+     if   [[ "$usezenity" == "true" ]]; then
+          windisk=$(zenity --file-selection --directory --title="Select the Windows drive" 2> /dev/null)
+          if [[ $? -ne 0 ]]; then return; fi
+     else
+          read -p "Enter path to Windows disk [/media/$USER/Windows]: " windisk
+     fi
 fi
    
 if [[ ! -d $windisk ]]; then
-   echo
-   echo "Unable to access path:" $windisk
-   echo
-   read -p "Press any key to continue... " -n1 -s
+   if   [[ "$usezenity" == "true" ]]; then
+        zenity --error --title="Path Error" --text="Unable to access: $windisk."
+   else
+        echo
+        echo "Unable to access path:" $windisk
+        echo
+        read -p "Press any key to continue... " -n1 -s
+   fi
    return 1
 fi
 
@@ -1166,11 +1177,19 @@ if   [[ -f "$windisk/sources/boot.wim" ]]; then
 elif [[ -f "$windisk/Windows/Boot/EFI/bootmgfw.efi" ]]; then
      winmedia="wintogo"
 else
-     echo
-     echo "Unable to locate the Windows files."
-     echo
-     read -p "Press any key to continue... " -n1 -s
+     if   [[ "$usezenity" == "true" ]]; then
+          zenity --error --title="File Error" --text="Unable to locate the Windows files."
+     else
+          echo
+          echo "Unable to locate the Windows files."
+          echo
+          read -p "Press any key to continue... " -n1 -s
+     fi
      return 1
+fi
+
+if [[ "$usezenity" == "true" ]]; then
+   zenwincustomargs='--list --checklist --width=480 --height=460 --title="BOOTDISK: Windows Customization" --text="Select from the options below:" --hide-header --hide-column=2 --column="Select" --column="Name" --column="Feature"'
 fi
 
 unsupported="false"
@@ -1188,95 +1207,142 @@ elif [[ $winmedia == "wintogo" && ! -z $(command -v hivexsh) ]]; then
         if [[ "$winprod" == "Windows 11" ]]; then win11opts; fi
      fi
 else
-    read -p "Is this a Windows 11 disk [Y/N]? " eleven
-    eleven=${eleven^^}
-    while [[ $eleven != "Y" && $eleven != "N" ]]; do
-          echo -e "${RED}Invalid entry. Try again.${NC}"
-          read -p "Is this a Windows 11 disk [Y/N]? " eleven
-          eleven=${eleven^^}
-    done
+    if   [[ "$usezenity" == "true" ]]; then
+         if zenity --question --title="Windows Options" --text="Is this a Windows 11 disk?"; then eleven="Y"; else eleven="N"; fi
+    else
+         read -p "Is this a Windows 11 disk [Y/N]? " eleven
+         eleven=${eleven^^}
+         while [[ $eleven != "Y" && $eleven != "N" ]]; do
+               echo -e "${RED}Invalid entry. Try again.${NC}"
+               read -p "Is this a Windows 11 disk [Y/N]? " eleven
+               eleven=${eleven^^}
+         done
+    fi
     if  [[ $eleven == "Y" ]]; then win11opts; fi
 fi
 
 localize="false"
-read -p "Use the current language settings on this system [Y/N]? " uselocale
-uselocale=${uselocale^^}
-while [[ $uselocale != "Y" && $uselocale != "N" ]]; do
- echo -e "${RED}Invalid entry. Try again.${NC}"
- read -p "Use the current language settings on this system [Y/N]? " uselocale
- uselocale=${uselocale^^}
-done
-if  [[ $uselocale == "Y" ]]; then localize="true"; fi
-
 settimezone="false"
-if [[ ! -z $(command -v pwsh) ]]; then
-   read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
-   usetimezone=${usetimezone^^}
-   while [[ $usetimezone != "Y" && $usetimezone != "N" ]]; do
-         echo -e "${RED}Invalid entry. Try again.${NC}"
-         read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
-         usetimezone=${usetimezone^^}
-   done
-   if [[ $usetimezone == "Y" ]]; then settimezone="true"; fi
-fi
-
 useraccounts="false"
-read -p "Create a local user account [Y/N]? " newuser
-newuser=${newuser^^}
-while [[ $newuser != "Y" && $newuser != "N" ]]; do
- echo -e "${RED}Invalid entry. Try again.${NC}"
- read -p "Create a local user account [Y/N]? " newuser
- newuser=${newuser^^}
-done
-if  [[ $newuser == "Y" ]]; then
-    useraccounts="true"
-    read -p "Enter a login name for new account [$USER]: " loginname
-    if [[ $loginname == "" ]]; then
-       loginname="$USER"
-    fi
-    if   [[ $system == "Darwin" ]]; then
-         username=$(id -F)
-    elif [[ $system == "Linux" ]]; then
-         username=$(getent passwd $USER | awk -F: '{print $5}')
-    fi
-    read -p "Enter the full name for new account [$username]: " fullname
-    if [[ $fullname == "" ]]; then
-       fullname="$username"
-    fi
-    read -p "Enter a description for new account: " description
-fi
-
 skipwifisetup="false"
-read -p "Skip the Join Wireless Network screen [Y/N]? " wifiscreen
-wifiscreen=${wifiscreen^^}
-while [[ $wifiscreen != "Y" && $wifiscreen != "N" ]]; do
-      echo -e "${RED}Invalid entry. Try again.${NC}"
-      read -p "Skip the Join Wireless Network screen [Y/N]? " wifiscreen
-      wifiscreen=${wifiscreen^^}
-done
-if  [[ $wifiscreen == "Y" ]]; then skipwifisetup="true"; fi
-
 disdatacol="false"
-read -p "Disable data collection and privacy questions [Y/N]? " privacy
-privacy=${privacy^^}
-while [[ $privacy != "Y" && $privacy != "N" ]]; do
+disautoenc="false"
+
+if   [[ "$usezenity" == "true" ]]; then
+     if [[ ! -z $(command -v pwsh) ]]; then zenwincustomargs+=' FALSE "usetimezone" "Use the current timezone setting on this system"'; fi
+     zenwincustomargs+=' FALSE "uselocale" "Use the current language settings on this system" FALSE "newuser" "Create a local user account" FALSE "wifiscreen" "Skip the Join Wireless Network screen" FALSE "privacy" "Disable data collection and privacy questions" FALSE "bitlocker" "Disable BitLocker automatic drive encryption"'
+     wincustopts=$(eval zenity $zenwincustomargs)
+     IFS="|" read -a options <<< "$wincustopts"
+     for item in "${options[@]}"; do
+         case "$item" in
+              "bypasshw")
+                   unsupported="true"
+                   ;;
+              "msaccount")
+                   bypassnro="true"
+                   ;;
+              "uselocale")
+                   localize="true"
+                   ;;
+              "usetimezone")
+                   settimezone="true"
+                   ;;
+              "wifiscreen")
+                   skipwifisetup="true"
+                   ;;
+              "privacy")
+                   disdatacol="true"
+                   ;;
+              "bitlocker")
+                   disautoenc="true"
+                   ;;
+              "newuser")
+                   useraccounts="true"
+                   username=$(getent passwd $USER | awk -F: '{print $5}')
+                   loginname=$(zenity --entry --title="Account Login Name" --text="Enter a login name for new account:" --entry-text="$USER")
+                   if [[ $? -ne 0 ]]; then return; fi
+                   fullname=$(zenity --entry --title="Account Full Name" --text="Enter the full name for new account:" --entry-text="$username")
+                   if [[ $? -ne 0 ]]; then return; fi
+                   description=$(zenity --entry --title="Account Description" --text="Enter a description for new account:")
+                   if [[ $? -ne 0 ]]; then return; fi
+                   ;;
+         esac
+     done
+else
+     read -p "Use the current language settings on this system [Y/N]? " uselocale
+     uselocale=${uselocale^^}
+     while [[ $uselocale != "Y" && $uselocale != "N" ]]; do
       echo -e "${RED}Invalid entry. Try again.${NC}"
-      read -p "Disable data collection and privacy questions [Y/N]? " privacy
-      privacy=${privacy^^}
-done
-if  [[ $privacy == "Y" ]]; then disdatacol="true"; fi
+      read -p "Use the current language settings on this system [Y/N]? " uselocale
+      uselocale=${uselocale^^}
+     done
+     if  [[ $uselocale == "Y" ]]; then localize="true"; fi
+
+     if [[ ! -z $(command -v pwsh) ]]; then
+        read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
+        usetimezone=${usetimezone^^}
+        while [[ $usetimezone != "Y" && $usetimezone != "N" ]]; do
+              echo -e "${RED}Invalid entry. Try again.${NC}"
+              read -p "Use the current timezone setting on this system [Y/N]? " usetimezone
+              usetimezone=${usetimezone^^}
+        done
+        if [[ $usetimezone == "Y" ]]; then settimezone="true"; fi
+     fi
+
+     read -p "Create a local user account [Y/N]? " newuser
+     newuser=${newuser^^}
+     while [[ $newuser != "Y" && $newuser != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Create a local user account [Y/N]? " newuser
+           newuser=${newuser^^}
+     done
+     if  [[ $newuser == "Y" ]]; then
+         useraccounts="true"
+         read -p "Enter a login name for new account [$USER]: " loginname
+         if [[ $loginname == "" ]]; then
+            loginname="$USER"
+         fi
+         if   [[ $system == "Darwin" ]]; then
+              username=$(id -F)
+         elif [[ $system == "Linux" ]]; then
+              username=$(getent passwd $USER | awk -F: '{print $5}')
+         fi
+         read -p "Enter the full name for new account [$username]: " fullname
+         if [[ $fullname == "" ]]; then
+            fullname="$username"
+         fi
+         read -p "Enter a description for new account: " description
+     fi
+
+     read -p "Skip the Join Wireless Network screen [Y/N]? " wifiscreen
+     wifiscreen=${wifiscreen^^}
+     while [[ $wifiscreen != "Y" && $wifiscreen != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Skip the Join Wireless Network screen [Y/N]? " wifiscreen
+           wifiscreen=${wifiscreen^^}
+     done
+     if  [[ $wifiscreen == "Y" ]]; then skipwifisetup="true"; fi
+
+     read -p "Disable data collection and privacy questions [Y/N]? " privacy
+     privacy=${privacy^^}
+     while [[ $privacy != "Y" && $privacy != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Disable data collection and privacy questions [Y/N]? " privacy
+           privacy=${privacy^^}
+     done
+     if  [[ $privacy == "Y" ]]; then disdatacol="true"; fi
+
+     read -p "Disable BitLocker automatic drive encryption [Y/N]? " bitlocker
+     bitlocker=${bitlocker^^}
+     while [[ $bitlocker != "Y" && $bitlocker != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Disable BitLocker automatic drive encryption [Y/N]? " bitlocker
+           bitlocker=${bitlocker^^}
+     done
+     if  [[ $bitlocker == "Y" ]]; then disautoenc="true"; fi
+fi
 
 if  [[ $skipwifisetup == "true" || $disdatacol == "true" ]]; then oobe="true"; else oobe="false"; fi
-
-disautoenc="false"
-read -p "Disable BitLocker automatic drive encryption [Y/N]? " bitlocker
-bitlocker=${bitlocker^^}
-while [[ $bitlocker != "Y" && $bitlocker != "N" ]]; do
-      echo -e "${RED}Invalid entry. Try again.${NC}"
-      read -p "Disable BitLocker automatic drive encryption [Y/N]? " bitlocker
-      bitlocker=${bitlocker^^}
-done
-if  [[ $bitlocker == "Y" ]]; then disautoenc="true"; fi
 
 if   [[ $winmedia == "install" ]]; then
      if  [[ $unsupported == "false" && $localize == "false" ]]; then
@@ -1295,13 +1361,22 @@ fi
 
 win11opts () {
 if [[ $winmedia == "install" ]]; then
-   read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
-   bypasshw=${bypasshw^^}
-   while [[ $bypasshw != "Y" && $bypasshw != "N" ]]; do
-         echo -e "${RED}Invalid entry. Try again.${NC}"
-         read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
-         bypasshw=${bypasshw^^}
-   done
+   if   [[ "$usezenity" == "true" ]]; then
+        if  [[ $wimtools == "true" && ! -z $(command -v hivexregedit) ]]; then
+            if zenity --question --title="Windows Hardware Requirements" --text="Disable TPM, Secure Boot and RAM requirements?"; \
+            then bypasshw="Y"; else bypasshw="N"; fi
+        else
+            zenwincustomargs+=' FALSE "bypasshw" "Disable TPM, Secure Boot and RAM requirements"'
+        fi
+   else
+        read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
+        bypasshw=${bypasshw^^}
+        while [[ $bypasshw != "Y" && $bypasshw != "N" ]]; do
+              echo -e "${RED}Invalid entry. Try again.${NC}"
+              read -p "Disable TPM, Secure Boot and RAM requirements [Y/N]? " bypasshw
+              bypasshw=${bypasshw^^}
+        done
+   fi
    if  [[ $bypasshw == "Y" ]]; then
        if  [[ $wimtools == "true" && ! -z $(command -v hivexregedit) ]]; then
            (cd $resdir/Windows/Scripts; ./unsupported.sh "$windisk")
@@ -1310,13 +1385,17 @@ if [[ $winmedia == "install" ]]; then
        fi
    fi
 fi
-read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
-msaccount=${msaccount^^}
-while [[ $msaccount != "Y" && $msaccount != "N" ]]; do
-      echo -e "${RED}Invalid entry. Try again.${NC}"
-      read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
-      msaccount=${msaccount^^}
-done
+if   [[ "$usezenity" == "true" ]]; then
+     zenwincustomargs+=' FALSE "msaccount" "Disable requirement for an online Microsoft account"'
+else
+     read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
+     msaccount=${msaccount^^}
+     while [[ $msaccount != "Y" && $msaccount != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Disable requirement for an online Microsoft account [Y/N]? " msaccount
+           msaccount=${msaccount^^}
+     done
+fi
 if  [[ $msaccount == "Y" ]]; then bypassnro="true"; fi
 }
 
