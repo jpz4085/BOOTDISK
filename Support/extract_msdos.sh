@@ -68,7 +68,10 @@ if  [[ -e "$libfile"  ]]; then
     if [[ "$usegui" == "false" ]]; then sleep 2; fi
     exit 0
 else
-    echo "Unable to access the specified file."
-    echo
-    read -p "Press any key to continue... " -n1 -s
+    if [[ "$usegui" == "false" ]]; then
+       echo "Unable to access the specified file."
+       echo
+       read -p "Press any key to continue... " -n1 -s
+    fi
+    exit 1
 fi
