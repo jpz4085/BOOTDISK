@@ -868,7 +868,7 @@ echo "-----------------------------------"
 }
 
 fido_script () {
-fido_title
+if [[ "$usezenity" == "false" ]]; then fido_title; fi
 # Download script if missing or not current version then patch for Unix platforms.
 fido_url="https://github.com/pbatard/Fido/releases/latest"
 fido_url_ver=$(curl -IkLs -o /dev/null -w %{url_effective} $fido_url | grep -o "[^/]*$"| sed "s/v//g")
@@ -895,11 +895,17 @@ fi
 # Choose to step through the script or provide all arguments.
 fido_mode="select"
 while [[ "$fido_mode" != "step" && "$fido_mode" != "cmds" ]]; do
-fido_title
-echo "Please select how to run the script:"
-echo " - Interactive Mode  (1)"
-echo " - CommandLine Mode  (2)"
-read -p "Please enter your choice to proceed: "
+if   [[ "$usezenity" == "true" ]]; then
+     choice=$(zenity --height="290" --width="200" --list --radiolist --title="Script Mode" --text="Please select how to run the script:" --hide-header --hide-column=2 --print-column=2 --column="Select" --column="ID" --column="Script Mode" FALSE 1 "Interactive Mode" FALSE 2 "CommandLine Mode")
+     if [[ $? -ne 0 ]]; then return; fi
+     read <<< $choice
+else
+     fido_title
+     echo "Please select how to run the script:"
+     echo " - Interactive Mode  (1)"
+     echo " - CommandLine Mode  (2)"
+     read -p "Please enter your choice to proceed: "
+fi
 case "$REPLY" in
      "1")  fido_mode="step" ;;
      "2")  fido_mode="cmds" ;;
@@ -908,49 +914,136 @@ esac
 done
 # Check if PowerShell is supported and run script.
 version=$(pwsh -Version | awk '{print $NF}')
-fido_prompt="Please enter your choice (q to Quit): "
+if   [[ "$usezenity" == "true" ]]; then
+     zenfidoargs='--forms --title="Windows ISO Downloads" --text="Selection Options"'
+else
+     fido_prompt="Please enter your choice (q to Quit): "
+fi
 if  [ "$(printf '%s\n' "3.0" "$version" | sort -V | head -n1)" = "3.0" ]; then
     if   [[ "$fido_mode" == "step" ]]; then
-         fido_title
-         pwsh $resdir/Support/Fido.ps1 -Win List
-         read -p "$fido_prompt" winver
+         if   [[ "$usezenity" == "true" ]]; then
+              versions=$(pwsh $resdir/Support/Fido.ps1 -Win List | tail -n +2)
+              versions="${versions:2}"; versions=$(echo $versions | sed 's/ - /|/g')
+              winverargs=" --add-combo=\"Downloads:\" --combo-values=\"$versions\""
+              winver=$(eval zenity $zenfidoargs $winverargs)
+              if   [[ $? -ne 0 ]]; then
+                   winver="q"
+              else
+                   winverargs=" --add-combo=\"Downloads:\" --combo-values=\"$winver\""
+              fi
+         else
+             fido_title
+             pwsh $resdir/Support/Fido.ps1 -Win List
+             read -p "$fido_prompt" winver
+         fi
          if [[ "$winver" == "q" ]]; then return; fi
-         fido_title
-         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel List
-         read -p "$fido_prompt" release
+         if   [[ "$usezenity" == "true" ]]; then
+              releases=$(pwsh $resdir/Support/Fido.ps1 -Win "$winver" -Rel List | tail -n +2)
+              releases="${releases:2}"; releases=$(echo $releases | sed 's/ - /|/g')
+              zenrelargs=" --add-combo=\"Releases:\" --combo-values=\"$releases\""
+              release=$(eval zenity $zenfidoargs $winverargs $zenrelargs)
+              if   [[ $? -ne 0 ]]; then
+                   release="q"
+              else
+                   release=$(echo "$release" | awk -F'|' '{print $NF}')
+                   zenrelargs=" --add-combo=\"Releases:\" --combo-values=\"$release\""
+              fi
+         else
+             fido_title
+             pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel List
+             read -p "$fido_prompt" release
+         fi
          if [[ "$release" == "q" ]]; then return; fi
-         fido_title
-         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed List
-         read -p "$fido_prompt" edition
+         if   [[ "$usezenity" == "true" ]]; then
+              editions=$(pwsh $resdir/Support/Fido.ps1 -Win "$winver" -Rel "$release" -Ed List | tail -n +2)
+              editions="${editions:2}"; editions=$(echo $editions | sed 's/ - /|/g')
+              zenedsargs=" --add-combo=\"Editions:\" --combo-values=\"$editions\""
+              edition=$(eval zenity $zenfidoargs $winverargs $zenrelargs $zenedsargs)
+              if   [[ $? -ne 0 ]]; then
+                   edition="q"
+              else
+                   edition=$(echo "$edition" | awk -F'|' '{print $NF}')
+                   zenedsargs=" --add-combo=\"Editions:\" --combo-values=\"$edition\""
+              fi
+         else
+             fido_title
+             pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed List
+             read -p "$fido_prompt" edition
+         fi
          if [[ "$edition" == "q" ]]; then return; fi
-         fido_title
-         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang List
-         read -p "$fido_prompt" lang
+         if   [[ "$usezenity" == "true" ]]; then
+              languages=$(pwsh $resdir/Support/Fido.ps1 -Win "$winver" -Rel "$release" -Ed "$edition" -Lang List | tail -n +2)
+              languages="${languages:2}"; languages=$(echo $languages | sed 's/ - /|/g')
+              zenlangargs=" --add-combo=\"Languages:\" --combo-values=\"$languages\""
+              lang=$(eval zenity $zenfidoargs $winverargs $zenrelargs $zenedsargs $zenlangargs)
+              if   [[ $? -ne 0 ]]; then
+                   lang="q"
+              else
+                   lang=$(echo "$lang" | awk -F'|' '{print $NF}')
+                   zenlangargs=" --add-combo=\"Languages:\" --combo-values=\"$lang\""
+              fi
+         else
+             fido_title
+             pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang List
+             read -p "$fido_prompt" lang
+         fi
          if [[ "$lang" == "q" ]]; then return; fi
-         fido_title
-         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch List
-         read -p "$fido_prompt" arch
+         if   [[ "$usezenity" == "true" ]]; then
+              architectures=$(pwsh $resdir/Support/Fido.ps1 -Win "$winver" -Rel "$release" -Ed "$edition" -Lang "$lang" -Arch List | tail -n +2)
+              architectures="${architectures:2}"; architectures=$(echo $architectures | sed 's/,/|/g')
+              zenarchargs=" --add-combo=\"Architectures:\" --combo-values=\"$architectures\""
+              arch=$(eval zenity $zenfidoargs $winverargs $zenrelargs $zenedsargs $zenlangargs $zenarchargs)
+              if   [[ $? -ne 0 ]]; then
+                   arch="q"
+              else
+                   arch=$(echo "$arch" | awk -F'|' '{print $NF}')
+                   zenarchargs=" --add-combo=\"Architectures:\" --combo-values=\"$arch\""
+              fi
+         else
+             fido_title
+             pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch List
+             read -p "$fido_prompt" arch
+         fi
          if [[ "$arch" == "q" ]]; then return; fi
-         fido_title
          cd ~/Downloads
-         pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch $arch
-         sleep 1
+         if   [[ "$usezenity" == "true" ]]; then
+              (pwsh $resdir/Support/Fido.ps1 -Win "$winver" -Rel "$release" -Ed "$edition" -Lang "$lang" -Arch "$arch" && \
+               pwsh -c "Write-Host "Download complete."") | zenity --width=750 --height=180 --text-info --title="Window ISO Downloads"
+         else
+             fido_title
+             pwsh $resdir/Support/Fido.ps1 -Win $winver -Rel $release -Ed $edition -Lang $lang -Arch $arch
+             sleep 1
+         fi
          cd -
     elif [[ "$fido_mode" == "cmds" ]]; then
-         fido_title
-         read -p "Enter script arguments (q to Quit): " fido_args
+         if   [[ "$usezenity" == "true" ]]; then
+              fido_args=$(zenity --entry --title="Windows ISO Downloads" --text="Arguments:")
+              if [[ $? -ne 0 ]]; then fido_args="q"; fi
+         else
+              fido_title
+              read -p "Enter script arguments (q to Quit): " fido_args
+         fi
          if [[ "$fido_args" == "q" ]]; then return; fi
-         fido_title
          cd ~/Downloads
-         pwsh $resdir/Support/Fido.ps1 $fido_args
-         sleep 1
+         if   [[ "$usezenity" == "true" ]]; then
+              (pwsh $resdir/Support/Fido.ps1 $fido_args && pwsh -c "Write-Host "Download complete."") | \
+              zenity --width=750 --height=180 --text-info --title="Window ISO Downloads"
+         else
+              fido_title
+              pwsh $resdir/Support/Fido.ps1 $fido_args
+              sleep 1
+         fi
          cd -
     fi
 else
-    fido_title
-    echo "PowerShell version 3.0 or higher required."
-    echo
-    read -n 1 -s -r -p "Press any key to continue"
+    if   [[ "$usezenity" == "true" ]]; then
+         zenity --error --title="PowerShell Error" --text="PowerShell version 3.0 or higher required."
+    else
+         fido_title
+         echo "PowerShell version 3.0 or higher required."
+         echo
+         read -n 1 -s -r -p "Press any key to continue"
+    fi
 fi
 }
 
