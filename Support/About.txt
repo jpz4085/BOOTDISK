@@ -22,7 +22,8 @@ Tools Menu
 
 Extract MS-DOS 8.0:
 
-Provide the path to the diskcopy.dll library from the Windows\SysWOW64 folder. This can be found
+Extract and install the system files from the diskcopy.dll library. The script can download it from
+Microsoft or you can provide a path to it. This file can be found under the Windows\SysWOW64 folder
 on a working system or the same location in the sources\install.wim archive on the install media.
 
 Download an ISO file:
@@ -99,6 +100,8 @@ Windows Install and UEFI Shell media:
 Packages for recommended features.
 Windows/UEFI Shell ISO downloads: powershell
 Linux NTFS and exFAT Support:     ntfs-3g, exfatprogs
+Graphical Dialogue Support:       zenity (Linux)
+Imaging Progress Support:         pv/pipeviewer
 
 Packages for optional features.
 Legacy BIOS Support and DOS media: ms-sys,mtools
