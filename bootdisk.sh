@@ -1400,10 +1400,14 @@ if  [[ $msaccount == "Y" ]]; then bypassnro="true"; fi
 }
 
 show_about () {
-clear
-cat $resdir/Support/About.txt
-echo
-read -n 1 -s -r -p "Press any key to continue"
+if   [[ "$usezenity" == "true" ]]; then
+     firefox --new-window $resdir/Support/About.html
+else
+     clear
+     cat $resdir/Support/About.txt
+     echo
+     read -n 1 -s -r -p "Press any key to continue"
+fi
 }
 
 select_err () {

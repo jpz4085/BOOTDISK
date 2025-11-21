@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BOOTDISK v2.0</title>
+  <meta charset="UTF-8">
+  <style>
+  table, th, td {
+    border: 2px solid black;
+    border-collapse: collapse;
+  }
+  th, td {
+  padding: 5px;
+  }
+  th {
+    text-align: center;
+  }
+  h1, img {
+    vertical-align:middle;
+    display:inline-block;
+  }
+  .grid-container {
+  display: grid;
+  grid-template-columns: 8% 92%;
+  }
+  .grid-item-a {
+  place-self: start start;
+  }
+  .grid-item-b {
+  place-self: start start;
+  }
+  body {
+     margin: 0px 50px 20px 90px;
+  }
+  </style>
+</head>
+
+<div style="text-align:center;">
+ <h1 style="color:darkviolet;font-size:250%;">BOOTDISK v2.0</h1>
+</div>
+
+<body style="background-color:lightskyblue;">
+
+<h2 style="color:deeppink;">Main Menu</h2>
+
+<div class="grid-container">
+
+<div class="grid-item-a">
+  <p>FreeDOS 1.4</p>
+  <p>MS-DOS 8.0</p>
+  <p><br>Windows 7-11</p>
+  <p><br>Linux/Other</p>
+</div>
+
+<div class="grid-item-b">
+  <p>Create a boot disk containing a basic set of utilities like FDISK,FORMAT,SYS,EDIT,etc.</p>
+  <p>Create a boot disk using the MS-DOS version included with Windows from XP to 8.1.<br>This option is not present by default and must be enabled from the Tools sub-menu.</p>
+  <p>Create Windows install media and optionally extract an ISO image to the disk.<br>Windows to Go media is supported when the proper dependencies are installed.</p>
+  <p>Create bootable live Linux media (including persistence with supported distributions)<br>as well as other install media and pre-built UEFI Shell images provided by Pete Batard.<br>The script can write raw disk images using dd or partition and format the disk.</p>
+</div>
+
+</div>
+
+<h2 style="color:deeppink;">Tools Menu</h2>
+
+<h4>Extract MS-DOS 8.0:</h4>
+
+<p>Extract and install the system files from the diskcopy.dll library. The script can download it from Microsoft or you can provide a path to it. This file can be found under the Windows\SysWOW64 folder on a working system or the same location in the sources\install.wim archive on the install media.</p>
+
+<h4>Download an ISO file:</h4>
+
+<p>Download official retail Windows ISOs and UEFI Shell ISOs using the same PowerShell script employed by Rufus. Fido can prompt for each parameter or all arguments can be passed on a single command line. Files are saved to the active user's Downloads folder.</p>
+
+<h4>Verify Windows ISO checksum:</h4>
+
+<p>Calculate the SHA-1 value for a Windows DVD image and search for it in the sha1.rg-adguard.net databases. A match confirms you have an original and unmodified Microsoft ISO file.</p>
+ 
+<h4>Custom Windows installation:</h4>
+
+<p>Automatically create a local account, configure privacy/data collection settings, use the current language and timezone settings, skip wireless network setup, and disable automatic BitLocker encryption. Disable the mandatory Microsoft account screen and bypass hardware requirements (TPM/Secure Boot/RAM) for Windows 11.</p>
+
+<h2 style="color:deeppink;">Linux Persistence</h2>
+
+<p>Specify the size of the persistence partition with a suffix of M/G/T (ex. 2048M) or as just 'max' to use all remaining space on the media. Enter nothing or a size of zero (ex. 0M) to disable persistence.</p>
+
+<p>The script will also offer to create a data/storage partition from any remaining space if desired.</p>
+
+<p>The steps below are required to enable persistence on certain Linux distributions when creating the live media from macOS. The necessary file or folders must be created from the live environment the first time.</p>
+
+<p><b>Debian:</b> Open a terminal and enter "lsblk -f" to identify the mount point of the persistence partition.<br>&emsp;&emsp;&emsp;&emsp;&nbsp;Change to the mount folder and enter the command below to create the required config file.</p>
+         
+<p>&emsp;&emsp;&emsp;&emsp;&nbsp;<span style="background-color: aqua;">echo "/ union" | sudo tee persistence.conf</span> (This will make all changes persistent.)</p>
+        
+<p><b>Overlay:</b> Disregard the missing persistent overlay error which occurs during the first boot process.<br>&emsp;&emsp;&emsp;&emsp;&nbsp;&nbsp;Open a terminal and enter "lsblk -f" to identify the mount point of the persistence image file.<br>&emsp;&emsp;&emsp;&emsp;&nbsp;&nbsp;Change to the mount folder and enter the command below to create the required overlay folders.<br>&emsp;&emsp;&emsp;&emsp;&nbsp;&nbsp;Note that the "--context" option is only required for Fedora.</p>
+         
+<p>&emsp;&emsp;&emsp;&emsp;&nbsp;&nbsp;<span style="background-color: aqua;">sudo mkdir -m 0755 --context=system_u:object_r:root_t:s0 overlayfs ovlwork</span></p>
+        
+<p>Reboot and confirm that persistence is working as expected.</p>
+
+<h2 style="color:deeppink;">Troubleshooting</h2>
+
+<h4>1. File and folder paths:</h4>
+
+<p>When entering file and folder paths at the prompts they should not contain any quotes so just paste the file, folder or path into terminal but don't drag and drop. This will avoid invalid path errors.</p>
+
+<h4>2. Windows ISO downloads:</h4>
+
+<p>When using the Fido download script you may receive a error stating "Some users, entities and locations are banned from using this service" if you or a previous user with the same external IP address accessed the Microsoft servers in rapid succession. The solution is to wait at least a full 24 hours before making another attempt then use the Fido command line option (not interactive mode) to download the ISO.</p>
+
+<h4>3. Windows to Go process:</h4>
+
+<p>When creating Windows to Go media under Linux the terminal may suddenly be killed by the userspace out of memory killer (systemd-oomd) as indicated in the logs. This happens most frequently under the GNOME desktop environment. See the repository Notes file or Linux documentation about overriding the default Memory Pressure Limit and Memory Pressure Duration values with drop-in configuration files.</p>
+
+<h2 style="color:deeppink;">Dependencies</h2>
+
+<table>
+<tr>
+    <th><i style="color:orangered;">Packages required for default features</i></th>
+</tr>
+<tr>
+    <td>Windows, Linux and UEFI Shell media</td>
+</tr>
+<tr>
+    <td>7zip, curl, jq, bash (above 3.2 on macOS)</td>
+</tr>
+</table>
+<p></p>
+<table>
+<tr>
+    <th><i style="color:orangered;">Recommended Features</i></th>
+    <th>Packages</th>
+</tr>
+<tr>
+    <td>Windows/UEFI Shell ISO downloads</td>
+    <td>powershell</td>
+</tr>
+<tr>
+    <td>Linux NTFS and exFAT Support</td>
+    <td>ntfs-3g, exfatprogs</td>
+</tr>
+<tr>
+    <td>Graphical Dialogue Support</td>
+    <td>zenity (Linux)</td>
+</tr>
+<tr>
+    <td>Imaging Progress Support</td>
+    <td>pv/pipeviewer</td>
+</tr>
+</table>
+<p></p>
+<table>
+<tr>
+    <th><i style="color:orangered;">Optional Features</i></th>
+    <th>Packages</th>
+</tr>
+<tr>
+    <td>Legacy BIOS Support and DOS media</td>
+    <td>ms-sys, mtools</td>
+</tr>
+<tr>
+    <td>Support for Windows To Go media</td>
+    <td>wimtools, bcd-sys</td>
+</tr>
+<tr>
+    <td>macOS NTFS Write/Format Support</td>
+    <td>Tuxera/Paragon</td>
+</tr>
+<tr>
+    <td>macOS Linux Persistence Support</td>
+    <td>e2fsprogs</td>
+</tr>
+</table>
+
+</body>
+</html>
