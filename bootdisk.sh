@@ -1401,7 +1401,12 @@ if  [[ $msaccount == "Y" ]]; then bypassnro="true"; fi
 
 show_about () {
 if   [[ "$usezenity" == "true" ]]; then
-     firefox --new-window $resdir/Support/About.html
+     if   [[ -f $docdir/bootdisk/About.html ]]; then
+          about_path="$docdir/bootdisk/About.html"
+     else
+          about_path="$resdir/Support/About.html"
+     fi
+     open "$about_path"
 else
      clear
      cat $resdir/Support/About.txt
@@ -1432,6 +1437,7 @@ if   [[ $system == "Darwin" ]]; then
      resdir="/opt/local/share/BOOTDISK"
 elif [[ $system == "Linux" ]]; then
      resdir="/usr/local/share/BOOTDISK"
+     docdir="/usr/share/doc"
 else
      echo "Unsupported platform detected."
      exit 1
