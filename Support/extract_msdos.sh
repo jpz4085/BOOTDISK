@@ -53,6 +53,10 @@ if  [[ -e "$libfile"  ]]; then
     if [[ "$usegui" == "false" ]]; then echo "Extract floppy disk image..."; fi
     dd if="$libfile" of=bootdisk.img bs=$bytes skip=$skip count=$count 2> /dev/null
     if [[ "$usegui" == "false" ]]; then echo "Extract and patch system files (sudo required)..."; fi
+    if [[ "$usegui" == "true"  ]]; then
+       zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+       if [[ $? -ne 0 ]]; then rm -f bootdisk.img; exit 1; fi
+    fi
     sudo 7z x bootdisk.img -o../MS-DOS/Files > /dev/null
     sudo chmod -R 755 ../MS-DOS/Files
     sudo chmod 644 ../MS-DOS/Files/MSDOS.SYS ../MS-DOS/Files/IO.SYS

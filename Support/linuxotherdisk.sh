@@ -793,6 +793,13 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  if [[ "$usezenity" == "true" ]]; then echo "15"; printf "# "; fi
 	  echo "Partition and format disk..."
+	  if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	     zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	     if [[ $? -ne 0 ]]; then
+	        echo "# Partitioning operation canceled."
+                exit 1
+	     fi
+	  fi
 	  if   [[ $prtshm == "MBR" ]]; then
 	       if   [[ "$persist" == "true" ]]; then
 	            sfdargs=(,$isopartsz'M',$pty,*\\n,$pstpart,L)

@@ -368,6 +368,13 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	if [[ "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	echo "Prepare disk and make bootable..."
+	if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	   zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	   if [[ $? -ne 0 ]]; then
+	      echo "# Partitioning operation canceled."
+              exit 1
+	   fi
+	fi
 	disk_mbytes=$(($disk_size / $mbyte)) #Disk space in whole MiBs
 	if [[ $uefint == "Y" ]]; then
 	   if   [[ $prtshm == "MBR" ]]; then

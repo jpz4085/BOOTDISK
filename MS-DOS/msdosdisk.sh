@@ -117,6 +117,13 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	dd if=/dev/zero of=/dev/$drive seek=$disk_offset 2> /dev/null
 	if [[ "$usezenity" == "true" ]]; then echo "30"; printf "# "; fi
 	echo "Prepare disk and make bootable..."
+	if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	   zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	   if [[ $? -ne 0 ]]; then
+	      echo "# Partitioning operation canceled."
+              exit 1
+	   fi
+	fi
 	echo ',,'$pty',*;' | sudo sfdisk /dev/$drive > /dev/null
 	ms-sys -9 /dev/$drive > /dev/null && sleep 1
 	sudo chmod o+rw /dev/$drive"1"
