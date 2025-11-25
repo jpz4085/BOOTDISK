@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=BOOTDISK
+Exec=/usr/local/bin/bootdisk
+Icon=/usr/local/share/BOOTDISK/Support/usb-icon.png
+StartupWMClass=zenity
