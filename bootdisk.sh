@@ -770,7 +770,7 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
        if file "$image" | grep -qiE "$pstcompatlist"; then
           if   [[ ! -z $(command -v mkfs.ext4) ]]; then
                if   [[ "$usezenity" == "true" ]]; then
-                    pstmaxsz=$(Support/linuxotherdisk.sh $system "$image" "$target" $prtshm getmaxsize false)
+                    pstmaxsz=$($resdir/Support/linuxotherdisk.sh $system "$image" "$target" $prtshm getmaxsize false)
                     pstpartsz=$(zenity --scale --title="BOOTDISK: Linux/Other" --text="Select size of persistent partition (MiB)." \
                     --value=0 --min-value=0 --max-value=$pstmaxsz --step=1024)
                     if [[ $? -ne 0 ]]; then return; fi
@@ -1446,7 +1446,7 @@ fi
 #Check if zenity is installed.
 if  [[ ! -z $(command -v zenity) && "$text_mode" == "false" ]]; then
     usezenity="true"
-    zendevargs='--list --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
+    zendevargs='--list --height=325 --width=500 --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
     readarray -t devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk '{printf("%s %s %4s %7s ", $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
 else
     usezenity="false"
