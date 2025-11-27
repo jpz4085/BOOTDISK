@@ -4,3 +4,5 @@ Name=BOOTDISK
 Exec=/usr/local/bin/bootdisk
 Icon=/usr/local/share/BOOTDISK/Support/usb-icon.png
 StartupWMClass=zenity
+Comment=Format flash drives and create bootable media.
+
