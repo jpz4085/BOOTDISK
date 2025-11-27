@@ -1406,7 +1406,11 @@ if   [[ "$usezenity" == "true" ]]; then
      else
           about_path="$resdir/Support/About.html"
      fi
-     open "$about_path"
+     if   [[ $(command -v xdg-open) ]]; then
+          xdg-open "$about_path"
+     else
+          open "$about_path"
+     fi
 else
      clear
      cat $resdir/Support/About.txt
