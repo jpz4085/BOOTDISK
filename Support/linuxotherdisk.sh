@@ -197,7 +197,8 @@ if [[ $system == "Linux" ]] ; then
    coproc BUFF (sync)
    
    if [[ $fstyp == "FAT"* ]] ; then
-      sudo -v #Refresh credentials for unmount.
+      #Refresh credentials for unmount if still active.
+      if sudo -nv 2>/dev/null; then sudo -v; fi
    fi
   
    while kill -0 $BUFF_PID 2> /dev/null; do
@@ -318,8 +319,8 @@ if [[ $overlay == "true" ]]; then
         echo "Creating folders on the persistent image..."
         imgblkdev=$(sudo losetup --find --show "$2"/persistence.img)
         sleep 3 && gio mount -d "$imgblkdev"
-        overlay_folder="/media/$USER/persistence/overlayfs"
-        ovlwork_folder="/media/$USER/persistence/ovlwork"
+        overlay_folder="$media_path/persistence/overlayfs"
+        ovlwork_folder="$media_path/persistence/ovlwork"
         sudo mkdir -m 0755 "$overlay_folder" "$ovlwork_folder"
         sudo setfattr -n security.selinux -v "system_u:object_r:root_t:s0" "$overlay_folder" "$ovlwork_folder"
         umount "$imgblkdev" && sudo losetup -d "$imgblkdev"
@@ -851,10 +852,15 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  if [[ "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	  echo "Mount boot disk..." && sleep 1
+	  if   [[ -d "/media/$USER" ]]; then
+	       media_path="/media/$USER"
+	  elif [[ -d "/run/media/$USER" ]]; then
+	       media_path="/run/media/$USER"
+	  fi
 	  if   [[ $fstyp == "EXT4" ]] ; then
 	       gio mount -d /dev/$drive"$efipart"
 	       gio mount -d /dev/$drive"$isopart"
-	       isovolpath="/media/$USER/$label"
+	       isovolpath="$media_path/$label"
 	       sudo chmod -R 777 "$isovolpath"
 	  else
 	       isovolpath="/mnt/isovolume"
@@ -877,11 +883,20 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  extract_files "$isofile" "$isovolpath" $pctval $pctdiv
 	  if [[ $fstyp == "FAT"* ]] ; then
+	     if ! sudo -nv 2>/dev/null; then
+	        #Request credentials for unmount if expired.
+	        if   [[ "$usezenity" == "true" ]]; then
+	             echo "# Remove temporary mount point..."
+	             zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	        else
+	             echo "Remove temporary mount point (sudo required)..."
+	        fi
+	     fi
 	     sudo umount $isovolpath && sudo rm -r $isovolpath
 	     gio mount -d /dev/$drive"$isopart"
 	  fi
-	  isolinuxdir=$(get_syslinux_path /media/$USER/"$label" isolinux)
-	  syslinuxdir=$(get_syslinux_path /media/$USER/"$label" syslinux)
+	  isolinuxdir=$(get_syslinux_path "$media_path/$label" isolinux)
+	  syslinuxdir=$(get_syslinux_path "$media_path/$label" syslinux)
 	  if   [[ ! -z "$isolinuxdir" && ! -z "$syslinuxdir" ]]; then
 	       if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	       echo "Remove unneeded isolinux files..."
@@ -890,29 +905,29 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	       rename_isolinux "$(dirname "$isolinuxdir")"
 	  fi
-	  if [[ $fstyp == "EXT4" && -f /media/$USER/"$label"/"$efigrubcfg" ]]; then
+	  if [[ $fstyp == "EXT4" && -f "$media_path/$label/$efigrubcfg" ]]; then
 	     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
-	     mkgrubefi /media/$USER/"$label" /media/$USER/GRUB
+	     mkgrubefi "$media_path/$label" "$media_path/GRUB"
 	  fi
 	  if [[ "$usblabel" == "true" ]]; then
 	     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
-	     update_cdlabel /media/$USER/"$label"
+	     update_cdlabel "$media_path/$label"
 	  fi
 	  if [[ "$persist" == "true" ]]; then
 	     if  [[ "$pupsave" == "true" ]]; then
 	         if [[ "$usezenity" == "true" ]]; then echo "60"; fi
-                 echo "SS_ID=$extlabel" > /media/$USER/"$label"/SAVESPEC
+                 echo "SS_ID=$extlabel" > "$media_path/$label/SAVESPEC"
              else
-                 config_persist /media/$USER/"$label" /media/$USER/"$extlabel" "1M"
+                 config_persist "$media_path/$label" "$media_path/$extlabel" "1M"
              fi
 	  fi
-	  if [[ -f /media/$USER/"$label"/md5sum.txt ]]; then
+	  if [[ -f "$media_path/$label/md5sum.txt" ]]; then
 	     if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi
-	     checksum_files /media/$USER/"$label" md5sum sha256sum
+	     checksum_files "$media_path/$label" md5sum sha256sum
 	  fi
-	  if [[ -f /media/$USER/"$label"/sha256sum.txt ]]; then
+	  if [[ -f "$media_path/$label/sha256sum.txt" ]]; then
 	     if [[ "$usezenity" == "true" ]]; then echo "95"; printf "# "; fi
-	     checksum_files /media/$USER/"$label" sha256sum md5sum
+	     checksum_files "$media_path/$label" sha256sum md5sum
 	  fi
 	  if   [[ "$usezenity" == "true" ]]; then
 	       echo "100"; echo "# Finished!"
