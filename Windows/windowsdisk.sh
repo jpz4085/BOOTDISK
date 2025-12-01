@@ -145,7 +145,8 @@ if [[ $system == "Linux" ]] ; then
    coproc BUFF (sync)
    
    if [[ $fstyp == "FAT32" && "$exclude" == "false" ]] ; then
-      sudo -v #Refresh credentials for unmount.
+      #Refresh credentials for unmount if still active.
+      if sudo -nv 2>/dev/null; then sudo -v; fi
    fi
    
    if [[ "$usezenity" == "true" ]]; then
@@ -209,7 +210,8 @@ fi
 if [[ $system == "Linux" ]] ; then
    coproc WIM_BUFF (sync)
    
-   sudo -v #Refresh credentials for unmount.
+   #Refresh credentials for unmount if still active.
+   if sudo -nv 2>/dev/null; then sudo -v; fi
    
    if [[ "$usezenity" == "true" ]]; then
       echo "# Writing archive to disk..."  
@@ -412,6 +414,11 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	fi
 	if [[ "$usezenity" == "true" ]]; then echo "30"; printf "# "; fi
 	echo "Mount boot disk..." && sleep 1
+	if   [[ -d "/media/$USER" ]]; then
+	     media_path="/media/$USER"
+	elif [[ -d "/run/media/$USER" ]]; then
+	     media_path="/run/media/$USER"
+	fi
 	if [[ "$haveiso" == "true" ]]; then
 	   if   [[ $fstyp == "FAT32" ]]; then
 	        winvolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
@@ -424,22 +431,41 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	             sudo mkdir -p /mnt/isomount && sudo mount -o ro,loop "$isofile" /mnt/isomount
 	             split_install /mnt/isomount/sources/install.wim /mnt/winvolume/sources/install.swm 3800 "55"
 	             if [[ "$usezenity" == "true" ]]; then echo "80"; printf "# "; fi
-	             echo "Unmount install disk image..."
+	             if   ! sudo -nv 2>/dev/null; then
+	                  printf "Unmount install disk image"
+	                  #Request credentials for unmount if expired.
+	                  if   [[ "$usezenity" == "true" ]]; then
+	                       echo "..."; zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	                  else
+	                       echo " (sudo required)..."
+	                  fi
+		     else
+		          echo "Unmount install disk image..."
+	             fi
 	             sudo umount /mnt/isomount && sudo rm -d /mnt/isomount
 	        else
 	             extract_files "$isofile" /mnt/winvolume "false" "30" "4"
+	        fi
+	        if ! sudo -nv 2>/dev/null; then
+	           #Request credentials for unmount if expired.
+	           if   [[ "$usezenity" == "true" ]]; then
+	                echo "# Remove temporary mount point..."
+	                zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	           else
+	                echo "Remove temporary mount point (sudo required)..."
+	           fi
 	        fi
 	        sudo umount /mnt/winvolume && sudo rm -r /mnt/winvolume
 	        gio mount -d /dev/$drive"1"
 	   else
 	        gio mount -d /dev/$drive"1"
-	        extract_files "$isofile" /media/$USER/"$label" "false" "30" "4"
+	        extract_files "$isofile" "$media_path/$label" "false" "30" "4"
 	   fi
-	   if [[ ! -e /media/$USER/"$label"/efi/boot/bootx64.efi ]]; then
+	   if [[ ! -e "$media_path/$label/efi/boot/bootx64.efi" ]]; then
 	      if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi
 	      echo "Copy bootmgfw.efi to EFI path..." # This should only apply to Windows 7 media.
-	      7z e /media/$USER/"$label"/sources/install.$wimext Windows/Boot/EFI/bootmgfw.efi -o/media/$USER/"$label"/efi/boot > /dev/null && \
-	      mv /media/$USER/"$label"/efi/boot/bootmgfw.efi /media/$USER/"$label"/efi/boot/bootx64.efi
+	      7z e "$media_path/$label/sources/install.$wimext" Windows/Boot/EFI/bootmgfw.efi -o"$media_path/$label/efi/boot" > /dev/null && \
+	      mv "$media_path/$label/efi/boot/bootmgfw.efi" "$media_path/$label/efi/boot/bootx64.efi"
 	   fi
 	fi
 	if   [[ "$haveiso" == "true" && "$usezenity" == "false" ]]; then
