@@ -1017,7 +1017,7 @@ if  [ "$(printf '%s\n' "3.0" "$version" | sort -V | head -n1)" = "3.0" ]; then
          cd -
     elif [[ "$fido_mode" == "cmds" ]]; then
          if   [[ "$usezenity" == "true" ]]; then
-              fido_args=$(zenity --entry --title="Windows ISO Downloads" --text="Arguments:")
+              fido_args=$(zenity --width=500 --entry --title="Windows ISO Downloads" --text="Arguments:")
               if [[ $? -ne 0 ]]; then fido_args="q"; fi
          else
               fido_title
