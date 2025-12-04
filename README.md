@@ -1,10 +1,12 @@
-## BOOTDISK - Flash Drive Formatting Tool
+<a href="https://www.flaticon.com/free-icons/usb" title="USB icons created by surang - Flaticon"><img align="left" width="65" height="65" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/Support/usb-icon.png" alt="USB drive by Flaticon"></a>
 
-This utility consists of BASH scripts that create bootable flash drives for use on UEFI and BIOS systems. It provides functionality under macOS and Linux similar to the Rufus USB Tool for Windows.
+## BOOTDISK - Flash Drive Formatting Utility and Tools
 
-Main Menu | Tools Menu
+This utility consists of BASH scripts that create bootable flash drives for use on UEFI and BIOS systems. It provides functionality under macOS and Linux similar to the Rufus USB Tool for Windows. Graphical menus using Zenity are now supported on Linux.
+
+Zenity Menu | Text Menu
 :-------------:|:-----------------:
-<img align="left" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/.github/images/Main Menu.png" width=406 height=502/> | <img align="right" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/.github/images/Tools Menu.png" width=407 height=502/>
+<img align="left" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/.github/images/Zenity Menu.png" width=406 height=502/> | <img align="right" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/.github/images/Text Menu.png" width=407 height=502/>
 
 Features
 --------
@@ -41,10 +43,12 @@ Install, uninstall or upgrade from the previous release.
 ```
 sudo ./setup.sh install | uninstall | upgrade
 ```
-Run at the prompt and install missing software packages.
+Click the shortcut on the app menu or run from terminal.
 ```
-bootdisk
+bootdisk #Graphical dialogues.
+bootdisk --text-mode
 ```
+Install any missing software packages as needed.
 
 Dependencies
 ------------ 
@@ -56,6 +60,8 @@ Dependencies
 | --- | --- |
 | Windows/UEFI Shell ISO downloads: | [powershell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) |  
 |Linux NTFS and exFAT Support: | ntfs-3g, exfatprogs|
+|Graphical Dialogue Support: |zenity (Linux)|  
+|Imaging Progress Support: |pv/pipeviewer|  
  
 |Optional|Packages|
 |---|---|
