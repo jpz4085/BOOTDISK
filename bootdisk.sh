@@ -1433,8 +1433,11 @@ RED='\033[1;31m'
 NC='\033[0m' # No Color
 system=`uname`
 text_mode="false"
+usezenity="false"
 
+#Check if zenity is installed and whether text mode is enabled.
 if [[ "$1" == "--text-mode" || $system == "Darwin" ]]; then text_mode="true"; fi
+if [[ ! -z $(command -v zenity) && "$text_mode" == "false" ]]; then usezenity="true"; fi
 
 # Set resource location for supported platforms or exit.
 if   [[ $system == "Darwin" ]]; then
@@ -1443,17 +1446,30 @@ elif [[ $system == "Linux" ]]; then
      resdir="/usr/local/share/BOOTDISK"
      docdir="/usr/share/doc"
 else
-     echo "Unsupported platform detected."
+     if   [[ "$usezenity" == "true" ]]; then
+          zenity --error --title="Invalid Platform" \
+          --text="This operating system is not supported."
+     else
+          echo "This operating system is not supported." >&2
+     fi
      exit 1
 fi
 
-#Check if zenity is installed.
-if  [[ ! -z $(command -v zenity) && "$text_mode" == "false" ]]; then
-    usezenity="true"
-    zendevargs='--list --height=325 --width=500 --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
-    readarray -t devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk '{printf("%s %s %4s %7s ", $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
-else
-    usezenity="false"
+#Root privileges will only be used when needed.
+if [[ $EUID -eq 0 ]]; then
+   if   [[ "$usezenity" == "true" ]]; then
+        zenity --error --title="Privilege Elevation" \
+        --text="This utility should NOT be run as root."
+   else
+        echo "This utility should NOT be run as root." >&2
+   fi
+   exit 1
+fi
+
+#Configure options and device list for Zenity.
+if [[ "$usezenity" == "true" ]]; then
+   zendevargs='--list --height=325 --width=500 --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
+   readarray -t devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk '{printf("%s %s %4s %7s ", $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
 fi
 
 # Check for required packages that are missing.
