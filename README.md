@@ -1,4 +1,4 @@
-<a href="https://www.flaticon.com/free-icons/usb" title="USB icons created by surang - Flaticon"><img align="left" width="65" height="65" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/Support/usb-icon.png" alt="USB drive by Flaticon"></a>
+<a href="https://www.flaticon.com/free-icons/usb" title="USB icons created by surang - Flaticon"><img align="left" width="55" height="55" src="https://raw.githubusercontent.com/jpz4085/BOOTDISK/main/Support/usb-icon.png" alt="USB drive by Flaticon"></a>
 
 ## BOOTDISK - Flash Drive Formatting Utility and Tools
 
