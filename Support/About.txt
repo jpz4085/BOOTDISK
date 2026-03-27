@@ -17,6 +17,11 @@ Linux/Other   Create bootable live Linux media (including persistence with suppo
               as well as other install media and pre-built UEFI Shell images provided by Pete Batard.
               The script can write raw disk images using dd or partition and format the disk.
 
+Erase Disk    Wipe the specified media then partition and format with the selected scheme and file
+              system. Available options include GUID Partition Table, Master Boot Record and Super
+              Floppy Disk (GPT/MBR/SFD) with any file system (FAT12/16/32,exFAT,NTFS,EXT/2/3/4,UDF,
+              JHFS+ and APFS) supported by this script on the host platform.
+
 Tools Menu
 ==========
 
