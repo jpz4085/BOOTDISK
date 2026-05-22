@@ -1682,10 +1682,24 @@ if [[ $EUID -eq 0 ]]; then
    exit 1
 fi
 
-#Configure options and device list for Zenity.
-if [[ "$usezenity" == "true" ]]; then
-   zendevargs='--list --height=325 --width=500 --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
-   readarray -t devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk '{printf("%s %s %4s %7s ", $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
+#Create a list of physical block devices for Zenity or text mode.
+if   [[ "$usezenity" == "true" ]]; then
+     zendevargs='--list --height=325 --width=500 --title="Select a Block Device" --column="Device" --column="Type" --column="Connection" --column="Size" --column="Description" --text="Choose a block device from the list:"'
+     readarray -t devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk '{printf("%s %s %4s %7s ", $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
+else
+     if   [[ "$system" == "Darwin" ]]; then
+          readarray -t physdisks <<< $(diskutil list physical | grep '0:' | awk '{print $NF}')
+          for ((i = 0; i < ${#physdisks[@]}; i++))
+          do
+              readarray -O $i devlist <<< $(echo "${physdisks[$i]} $(diskutil info ${physdisks[$i]} | grep 'Device Location:' | awk '{print $3}') $(diskutil info ${physdisks[$i]} | grep 'Protocol:' | awk '{print $2}') $(diskutil info ${physdisks[$i]} | grep 'Disk Size:' | awk '{print $3,$4}' | sed 's/ //') $(diskutil info ${physdisks[$i]} | grep 'Device / Media Name:' | cut -d' ' -f14-)")
+          done
+          readarray devices <<< $(printf "%s" "${devlist[@]}" | awk 'BEGIN {n=1;} {printf("(%d) %s %s %4s %7s ",n++, $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
+          dev_menu_top='Select a block device:\n\nNum Drive     Type Conn    Size Description\n-------------------------------------'
+     elif [[ "$system" == "Linux" ]]; then
+          readarray devices <<< $(lsblk -dno name,type,tran,size,model | grep disk | awk 'BEGIN {n=1;} {printf("(%d) %s %s %4s %7s ",n++, $1, $2, $3, $4); printf"\""; for (i = 5; i<= NF; i++) {printf "%s%s", $i, (i == NF ? "" : OFS);} printf "\"\n";}')
+          dev_menu_top='Select a block device:\n\nNum Blk Type Conn    Size Description\n-------------------------------------'
+     fi
+     dev_menu_btm='-------------------------------------'
 fi
 
 # Check for required packages that are missing.
