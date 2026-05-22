@@ -187,48 +187,104 @@ esac
 done
 }
 
+fdostitle() {
+clear
+echo "    FreeDOS 1.4 Boot Disk Script     "
+echo "-------------------------------------"
+}
+
 fdosdisk () {
-if [[ "$usezenity" == "false" ]]; then
-   clear
-   echo "   FreeDOS 1.4 Boot Disk Script    "
-   echo "-----------------------------------"
-fi
-if [[ "$system" == "Darwin" ]]; then
-   read -p "Enter target disk [disk#]: " tgtdsk
-   while [[ $tgtdsk != *"disk"* ]]; do
-         echo -e "${RED}Invalid disk name. Try again.${NC}"
-         read -p "Enter target disk [disk#]: " tgtdsk
-   done
-elif [[ "$system" == "Linux" ]]; then
-     if   [[ "$usezenity" == "true" ]]; then
-          tgtdsk=$(eval zenity $zendevargs ${devices[@]})
-          if [[ $? -ne 0 ]]; then return; fi
-     else
-          read -p "Enter target disk [sd*]: " tgtdsk
-          while [[ $tgtdsk != *"sd"* ]]; do
-                echo -e "${RED}Invalid disk name. Try again.${NC}"
-                read -p "Enter target disk [sd*]: " tgtdsk
-          done
-     fi
+verbose="false"
+if   [[ "$usezenity" == "true" ]]; then
+     tgtdsk=$(eval zenity $zendevargs ${devices[@]})
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     while :
+     do
+           fdostitle
+           echo -e "$dev_menu_top"; printf "%s" "${devices[@]}"; echo "$dev_menu_btm"
+           read -p "Enter choice: " devnum
+           if   [[ $devnum == [1-9] && $devnum -le ${#devices[@]} ]]; then
+                tgtdsk=$(printf "%s" "${devices[(($devnum - 1))]}" | awk '{print $2}')
+                break
+           else
+                select_err
+           fi
+     done
 fi
 
 if   [[ "$usezenity" == "true" ]]; then
-     fstyp=$(zenity --forms --title="BOOTDISK: FreeDOS" --text="Format Options" --add-combo="Filesystem" --combo-values="FAT16|FAT32")
+     fmtopts=$(zenity --forms --title="BOOTDISK: FreeDOS" --text="Format Options" --add-combo="File System" --combo-values="FAT16|FAT32" --add-combo="Format Type" --combo-values="QUICK|FULL")
      if [[ $? -ne 0 ]]; then return; fi
+     fstyp=$(echo $fmtopts | awk -F'|' '{print $1}')
+     fmtyp=$(echo $fmtopts | awk -F'|' '{print $2}')
 else
-     read -p "Enter file system [FAT16/FAT32]: " fstyp
-     fstyp=${fstyp^^}
-     while [[ $fstyp != "FAT16" && $fstyp != "FAT32" ]]; do
-         echo -e "${RED}Invalid file system type. Try again.${NC}"
-         read -p "Enter file system [FAT16/FAT32]: " fstyp
-         fstyp=${fstyp^^}
+     fstyp=""
+     while :
+     do
+           if [[ -z "$fstyp" ]]; then
+              fdostitle
+              echo -en "Block Device: /dev/$tgtdsk\n\n"
+              echo -en "Format Options:\n\n(1) FAT16\n(2) FAT32\n\n"
+              read -p "Enter choice: " fsnum
+              case "$fsnum" in
+                   "1")
+                      fstyp="FAT16"
+                      ;;
+                   "2")
+                      fstyp="FAT32"
+                      ;;
+                    * )
+                      select_err
+                      ;;
+              esac
+           fi
+           if [[ ! -z "$fstyp" ]]; then
+              fdostitle
+              echo -en "Block Device: /dev/$tgtdsk\nFile System:  $fstyp\n\n"
+              echo -en "Format Options:\n\n(1) QUICK\n(2) FULL\n\n"
+              read -p "Enter choice: " fmnum
+              case "$fmnum" in
+                   "1")
+                      fmtyp="QUICK"
+                      break
+                      ;;
+                   "2")
+                      fmtyp="FULL"
+                      break
+                      ;;
+                    * )
+                      select_err
+                      ;;
+              esac
+           fi
      done
+fi
+
+if   [[ "$usezenity" == "true" ]]; then
+     if zenity --question --title="Verbose Format Option" \
+        --text="Display detailed filesystem information?"; then
+        verbose="true"
+     fi
+else
+     fdostitle
+     echo -en "Block Device: /dev/$tgtdsk\nFile System:  $fstyp\nFormat Type:  $fmtyp\n\n"
+     read -p "Display detailed filesystem information [Y/N]? " vfmtmode
+     vfmtmode=${vfmtmode^^}
+     while [[ $vfmtmode != "Y" && $vfmtmode != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Display detailed filesystem information [Y/N]? " vfmtmode
+           vfmtmode=${vfmtmode^^}
+     done
+     if [[ $vfmtmode == "Y" ]]; then verbose="true"; fi
 fi
 
 if   [[ "$usezenity" == "true" ]]; then
      volname=$(zenity --entry --title="BOOTDISK: FreeDOS" --text="Volume Label:" --entry-text="FREEDOS")
      if [[ $? -ne 0 ]]; then return; fi
 else
+     fdostitle
+     echo -en "Block Device: /dev/$tgtdsk\nFile System:  $fstyp\nFormat Type:  $fmtyp\nVerbose Mode: ${verbose^^}\n\n"
      read -p "Enter label [FREEDOS]: " volname
      if [[ "$volname" == "" ]]; then volname=FREEDOS; fi
 fi
@@ -243,12 +299,16 @@ while [ $n -gt 11 ]; do
            echo -e "${RED}Label must be eleven characters or less.${NC}"
            read -p "Enter label [FREEDOS]: " volname
       fi
+      if [[ "$volname" == "" ]]; then volname=FREEDOS; fi
       volname=${volname^^}
       n=${#volname}
 done
 
-echo
-(cd $resdir/FreeDOS; ./freedosdisk.sh $system $fstyp "$volname" $tgtdsk $usezenity)
+if [[ "$usezenity" == "false" ]]; then
+   fdostitle
+   echo -en "Block Device: /dev/$tgtdsk\nFile System:  $fstyp\nFormat Type:  $fmtyp\nVerbose Mode: ${verbose^^}\nVolume Label: $volname\n\n"
+fi
+(cd $resdir/FreeDOS; ./freedosdisk.sh $system $fstyp $fmtyp $verbose "$volname" $tgtdsk $usezenity)
 }
 
 msdosdisk () {
