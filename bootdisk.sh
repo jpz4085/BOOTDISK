@@ -675,54 +675,66 @@ if [[ "$usezenity" == "false" ]]; then windisk_title; echo -en "$choices\n"; fi
 
 wtgtitle () {
 clear
-echo "      Windows to Go Script      "
-echo "--------------------------------"
+echo "        Windows to Go Script        "
+echo "------------------------------------"
 }
 
 windowstogo () {
-if [[ "$usezenity" == "false" ]]; then wtgtitle; fi
-if [[ "$system" == "Darwin" ]]; then
-   read -p "Enter target disk [disk#]: " tgtdsk
-   while [[ $tgtdsk != *"disk"* ]]; do
-         echo -e "${RED}Invalid disk name. Try again.${NC}"
-         read -p "Enter target disk [disk#]: " tgtdsk
-   done
-elif [[ "$system" == "Linux" ]]; then
-     if   [[ "$usezenity" == "true" ]]; then
-          tgtdsk=$(eval zenity $zendevargs ${devices[@]})
-          if [[ $? -ne 0 ]]; then return; fi
-     else
-          read -p "Enter target disk [sd*]: " tgtdsk
-          while [[ $tgtdsk != *"sd"* ]]; do
-                echo -e "${RED}Invalid disk name. Try again.${NC}"
-                read -p "Enter target disk [sd*]: " tgtdsk
-          done
-     fi
-fi
-
+image="N/A"
+verbose="false"
+fmtyp="QUICK"
 if   [[ "$usezenity" == "true" ]]; then
-     image=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
+     tgtdsk=$(eval zenity $zendevargs ${devices[@]})
      if [[ $? -ne 0 ]]; then return; fi
 else
-     read -p "Enter path to ISO file: " image
-     while [[ ! -f "$image" || "$image" != *.iso ]]; do
-           echo -e "${RED}Invalid file. Please try again.${NC}"
-           read -p "Enter path to ISO file: " image
+     while :
+     do
+           wtgtitle
+           echo -e "$dev_menu_top"; printf "%s" "${devices[@]}"; echo "$dev_menu_btm"
+           read -p "Enter choice: " devnum
+           if   [[ $devnum == [1-9] && $devnum -le ${#devices[@]} ]]; then
+                tgtdsk=$(printf "%s" "${devices[(($devnum - 1))]}" | awk '{print $2}')
+                choices="Block Device: /dev/$tgtdsk\n"
+                break
+           else
+                select_err
+           fi
      done
 fi
 
+while true; do
+      if   [[ "$usezenity" == "true" ]]; then
+           image=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
+           if [[ $? -ne 0 ]]; then return; fi
+      else
+           if [[ "$image" == "N/A" ]]; then wtgtitle; echo -en "$choices\n"; fi
+           read -p "Enter path to ISO file: " image
+      fi
+      if file "$image" | grep -q 'ISO 9660 CD-ROM filesystem data'; then isofile="true"; else isofile="false"; fi
+      if [[ -f "$image" && "$isofile" == "true" ]]; then break; fi
+      if   [[ "$usezenity" == "true" ]]; then
+           zenity --error --title="Invalid Disk Image" --text="Selected file does not appear to be a valid ISO. Try again."
+           if [[ $? -ne 0 ]]; then return; fi
+      else
+           echo -e "${RED}Invalid image file. Please try again.${NC}"
+      fi
+done
+
 if   [[ "$system" == "Darwin" ]]; then
      wimfile="/tmp/isomount/sources/install.wim"
-     echo "Mount install disk image..."
      hdiutil attach "$image" -mountpoint /tmp/isomount -nobrowse > /dev/null
 elif [[ "$system" == "Linux" ]]; then
      wimfile="/mnt/isomount/sources/install.wim"
      if [[ ! -f $wimfile ]]; then
         if   [[ "$usezenity" == "true" ]]; then
-             zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	     if [[ $? -ne 0 ]]; then return; fi
+             if ! sudo -nv 2>/dev/null; then
+                zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	        if [[ $? -ne 0 ]]; then return; fi
+	     fi
         else
-             echo "Mount install disk image (sudo required)..."
+             if ! sudo -nv 2>/dev/null; then
+                echo "Mount install disk image (sudo required)..."
+             fi
         fi
         sudo mkdir -p /mnt/isomount
         sudo mount -o ro,loop "$image" /mnt/isomount
@@ -732,11 +744,52 @@ if [[ ! -f $wimfile ]]; then
    if   [[ "$usezenity" == "true" ]]; then
         zenity --error --title="File Error" --text="Unable to find install archive in DVD image."
    else
+        wtgtitle
+        echo -en "$choices"
+        echo -en "Image file:   $(basename "$image")\n\n"
         echo -e "${RED}Unable to find install archive in DVD image.${NC}"
         echo
         read -p "Press any key to continue... " -n1 -s
    fi
    return 1
+fi
+
+if   [[ "$usezenity" == "true" ]]; then
+     if zenity --question --title="Enable Full Format Mode" \
+        --text="Do you want to perform a full format?"; then
+        fmtyp="FULL"
+     fi
+else
+     wtgtitle
+     echo -en "$choices\n"
+     read -p "Do you want to perform a full format [Y/N]? " fullfmtmode
+     fullfmtmode=${fullfmtmode^^}
+     while [[ $fullfmtmode != "Y" && $fullfmtmode != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Do you want to perform a full format [Y/N]? " fullfmtmode
+           fullfmtmode=${fullfmtmode^^}
+     done
+     if [[ $fullfmtmode == "Y" ]]; then fmtyp="FULL"; fi
+     choices+="Format Mode:  ${fmtyp^^}\n"
+fi
+
+if   [[ "$usezenity" == "true" ]]; then
+     if zenity --question --title="Verbose Format Option" \
+        --text="Display detailed filesystem information?"; then
+        verbose="true"
+     fi
+else
+     wtgtitle
+     echo -en "$choices\n"
+     read -p "Display detailed filesystem information [Y/N]? " vfmtmode
+     vfmtmode=${vfmtmode^^}
+     while [[ $vfmtmode != "Y" && $vfmtmode != "N" ]]; do
+           echo -e "${RED}Invalid entry. Try again.${NC}"
+           read -p "Display detailed filesystem information [Y/N]? " vfmtmode
+           vfmtmode=${vfmtmode^^}
+     done
+     if [[ $vfmtmode == "Y" ]]; then verbose="true"; fi
+     choices+="Verbose Mode: ${verbose^^}\n"
 fi
 
 prodname=$(wiminfo $wimfile | grep -E '^(Name:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g')
@@ -748,19 +801,24 @@ if   [[ "$usezenity" == "true" ]]; then
      if [[ $? -ne 0 ]]; then index="q"; fi
 else
      wtgtitle
+     echo -en "$choices\n"
      idxnum=$(wiminfo $wimfile | grep -E '^(Index:)' | cut -d " " -f2- | sed 's/^[[:space:]]*//g;s/[0-9]$/&\./g')
-     echo "Windows products on $(basename "$image")"
-     paste <(printf %s "$idxnum") <(printf %s "$prodname")
+     echo "Contents of $(basename "$image")"
+     echo "$dev_menu_btm"
+     paste <(printf %-3s "$idxnum") <(printf %s "$prodname") | column -s $'\t' -t
+     echo "$dev_menu_btm"
      read -p "Enter Choice (q to Quit): " index
      while [[ $idxnum != *$index* && $index != "q" ]]; do
            echo -e "${RED}Invalid entry. Please try again.${NC}"
            read -p "Enter Choice: " index
      done
+     choices+="Selection:    $(echo "$prodname" | awk "NR==$index")\n"
 fi
 
 if [[ "$index" != "q" ]]; then
-   echo
-   (cd $resdir/Windows; ./windowstogo.sh $system $wimfile $index $tgtdsk $usezenity)
+   wtgtitle
+   echo -en "$choices\n"
+   (cd $resdir/Windows; ./windowstogo.sh $system $wimfile $fmtyp $verbose $index $tgtdsk $usezenity)
 fi
 
 if [[ $? -ne 0 ]]; then wtgerror="true"; else wtgerror="false"; fi
