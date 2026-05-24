@@ -10,8 +10,8 @@ FreeDOS 1.4   Create a boot disk containing a basic set of utilities like FDISK,
 MS-DOS 8.0    Create a boot disk using the MS-DOS version included with Windows from XP to 8.1.
               This option is not present by default and must be enabled from the Tools sub-menu.
 
-Windows 7-11  Create Windows install media and optionally extract an ISO image to the disk.
-              Windows to Go media is supported when the proper dependencies are installed.
+Windows 7-11  Create bootable Windows install media or Windows To Go media from an ISO image.
+              The second option is supported only when the proper dependencies are installed.
 
 Linux/Other   Create bootable live Linux media (including persistence with supported distributions)
               as well as other install media and pre-built UEFI Shell images provided by Pete Batard.
@@ -99,7 +99,7 @@ Dependencies
 ============
 
 Packages required for default features.
-Windows Install and UEFI Shell media:
+Windows, Linux and UEFI Shell media:
 7zip, curl, jq, bash (above 3.2 on macOS)
 
 Packages for recommended features.
