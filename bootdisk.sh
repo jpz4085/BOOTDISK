@@ -1240,16 +1240,18 @@ if [[ "$usezenity" == "false" ]]; then linux_other_title; echo -en "$choices\n";
 (cd $resdir/Support; ./linuxotherdisk.sh $system "$image" "$target" $prtshm $pstpart $datapart $fstyp $fmtyp $fspst $fmpst $verbose "$volname" $usezenity)
 }
 
+erase_title () {
+clear
+echo "      Disk Erase/Wipe Script      "
+echo "----------------------------------"
+}
+
 erase_disk () {
-if [[ "$usezenity" == "false" ]]; then
-   clear
-   echo "      Disk Erase/Wipe Script      "
-   echo "----------------------------------"
-fi
 uefiboot="false"
 setowner="false"
 verbose="false"
 have_apfs="false"
+udfinfo="false"
 fsopts="FAT16|FAT32"
 udfdata=("empty" "empty" "empty")
 
@@ -1267,57 +1269,89 @@ elif [[ "$system" == "Linux" ]]; then
      if [[ "$udf_make" == "true" ]]; then fsopts+="|UDF"; fi
 fi
 
-if [[ "$system" == "Darwin" ]]; then
-   read -p "Enter target disk [disk#]: " tgtdsk
-   while [[ $tgtdsk != *"disk"* ]]; do
-         echo -e "${RED}Invalid disk name. Try again.${NC}"
-         read -p "Enter target disk [disk#]: " tgtdsk
-   done
-elif [[ "$system" == "Linux" ]]; then
-     if   [[ "$usezenity" == "true" ]]; then
-          tgtdsk=$(eval zenity $zendevargs ${devices[@]})
-          if [[ $? -ne 0 ]]; then return; fi
-     else
-          read -p "Enter target disk [sd*]: " tgtdsk
-          while [[ $tgtdsk != *"sd"* ]]; do
-                echo -e "${RED}Invalid disk name. Try again.${NC}"
-                read -p "Enter target disk [sd*]: " tgtdsk
-          done
-     fi
+if   [[ "$usezenity" == "true" ]]; then
+     tgtdsk=$(eval zenity $zendevargs ${devices[@]})
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     while :
+     do
+           erase_title
+           echo -e "$dev_menu_top"; printf "%s" "${devices[@]}"; echo "$dev_menu_btm"
+           read -p "Enter choice: " devnum
+           if   [[ $devnum == [1-9] && $devnum -le ${#devices[@]} ]]; then
+                tgtdsk=$(printf "%s" "${devices[(($devnum - 1))]}" | awk '{print $2}')
+                break
+           else
+                select_err
+           fi
+     done
 fi
 
 if   [[ "$usezenity" == "true" ]]; then
-     layout=$(zenity --forms --title="BOOTDISK: Erase/Wipe" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="MBR|GPT|SFD" --add-combo="Format Options" --combo-values="$fsopts")
+     layout=$(zenity --forms --title="BOOTDISK: Erase/Wipe" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="MBR|GPT|SFD" --add-combo="File System" --combo-values="$fsopts")
      if [[ $? -ne 0 ]]; then return; fi
      prtshm=$(echo $layout | awk -F'|' '{print $1}')
      fstyp=$(echo $layout | awk -F'|' '{print $2}')
      if [[ $fstyp == "EXT"* ]]; then ftopts="QUICK|FULL-READ|FULL-WRITE"; else ftopts="QUICK|FULL"; fi
-     layout=$(zenity --forms --title="BOOTDISK: Erase/Wipe" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="$prtshm" --add-combo="Format Options" --combo-values="$fstyp" --add-combo="Format Type" --combo-values="$ftopts")
+     layout=$(zenity --forms --title="BOOTDISK: Erase/Wipe" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="$prtshm" --add-combo="File System" --combo-values="$fstyp" --add-combo="Format Type" --combo-values="$ftopts")
      if [[ $? -ne 0 ]]; then return; fi
      fmtyp=$(echo $layout | awk -F'|' '{print $3}')
 else
-     read -p "Enter partition scheme [GPT|MBR|SFD]: " prtshm
-     prtshm=${prtshm^^}
-     while [[ $prtshm != "GPT" && $prtshm != "MBR" && $prtshm != "SFD" ]]; do
-           echo -e "${RED}Invalid partition scheme. Try again.${NC}"
-           read -p "Enter partition scheme [GPT|MBR|SFD]: " prtshm
-           prtshm=${prtshm^^}
-     done
-     if [[ "$have_apfs" == "true" && $prtshm == "GPT" ]]; then fsopts+="|APFS"; fi
-     read -p "Enter file system [$fsopts]: " fstyp
-     fstyp=${fstyp^^}
-     while [[ $fstyp != "FAT"* && $fstyp != "EXT"* && $fstyp != "EXFAT" && $fstyp != "NTFS" && $fstyp != "UDF" && $fstyp != "JHFS+" && $fstyp != "APFS" ]]; do
-           echo -e "${RED}Invalid file system type. Try again.${NC}"
-           read -p "Enter file system [$fsopts]: " fstyp
-           fstyp=${fstyp^^}
-     done
-     if [[ $fstyp == "EXT"* ]]; then ftopts="QUICK|FULL-READ|FULL-WRITE"; else ftopts="QUICK|FULL"; fi
-     read -p "Enter format type [$ftopts]: " fmtyp
-     fmtyp=${fmtyp^^}
-     while [[ $fmtyp != "QUICK" && $fmtyp != "FULL" && $fmtyp != "FULL-READ" && $fmtyp != "FULL-WRITE" ]]; do
-           echo -e "${RED}Invalid format type. Try again.${NC}"
-           read -p "Enter format type [$ftopts]: " fmtyp
-           fmtyp=${fmtyp^^}
+     prtshm=""
+     fstyp=""
+     fmtyp=""
+     ptarr=(GPT MBR SFD)
+     ptopts="(1) GPT\n(2) MBR\n(3) SFD"
+     choices="Block Device: /dev/$tgtdsk\n"
+     while :
+     do
+           if [[ -z "$prtshm" ]]; then
+              erase_title
+              echo -en "$choices\n"
+              echo -en "Format Options:\n\n$ptopts\n\n"
+              read -p "Enter choice: " ptnum
+              if   [[ $ptnum == [1-9] && $ptnum -le ${#ptarr[@]} ]]; then
+                   prtshm=$(echo "${ptarr[(($ptnum - 1))]}")
+                   if [[ "$have_apfs" == "true" && $prtshm == "GPT" ]]; then fsopts+="|APFS"; fi
+                   fslist=$(echo $fsopts | sed 's/|/\\n /g' | awk '{n=1} {for (i = 1; i<= NF; i++) printf("(%d) %s", n++, $i);}')
+                   readarray -d'|' -t fsarr <<< $(echo $fsopts)
+                   choices+="Disk Layout:  $prtshm\n"
+              else
+                   select_err
+              fi
+           fi
+           if [[ ! -z "$prtshm" && -z "$fstyp" ]]; then
+              erase_title
+              echo -en "$choices\n"
+              echo -en "Format Options:\n\n$fslist\n\n"
+              read -p "Enter choice: " fsnum
+              if   [[ $fsnum == [1-9] && $fsnum -le ${#fsarr[@]} ]]; then
+                   fstyp=$(echo "${fsarr[(($fsnum - 1))]}")
+                   choices+="File System:  $fstyp\n"
+                   if   [[ $fstyp == "EXT"* ]]; then
+                        ftopts="(1) QUICK\n(2) FULL-READ\n(3) FULL-WRITE"
+                        ftarr=(QUICK FULL-READ FULL-WRITE)
+                   else
+                        ftopts="(1) QUICK\n(2) FULL"
+                        ftarr=(QUICK FULL)
+                   fi
+              else
+                   select_err
+              fi
+           fi
+           if [[ ! -z "$prtshm" && ! -z "$fstyp" && -z "$fmtyp" ]]; then
+              erase_title
+              echo -en "$choices\n"
+              echo -en "Format Options:\n\n$ftopts\n\n"
+              read -p "Enter choice: " ftnum
+              if   [[ $ftnum == [1-9] && $ftnum -le ${#ftarr[@]} ]]; then
+                   fmtyp=$(echo "${ftarr[(($ftnum - 1))]}")
+                   choices+="Format Type:  $fmtyp\n"
+                   break
+              else
+                   select_err
+              fi
+           fi
      done
 fi
 
@@ -1328,6 +1362,8 @@ if [[ $fstyp != "APFS" ]]; then
            verbose="true"
         fi
    else
+        erase_title
+        echo -en "$choices\n"
         read -p "Display detailed filesystem information [Y/N]? " vfmtmode
         vfmtmode=${vfmtmode^^}
         while [[ $vfmtmode != "Y" && $vfmtmode != "N" ]]; do
@@ -1336,6 +1372,7 @@ if [[ $fstyp != "APFS" ]]; then
               vfmtmode=${vfmtmode^^}
         done
         if [[ $vfmtmode == "Y" ]]; then verbose="true"; fi
+        choices+="Verbose Mode: ${verbose^^}\n"
    fi
 fi
 
@@ -1345,6 +1382,8 @@ if [[ $fstyp == "EXT"* || $fstyp == "JHFS+" || $fstyp == "APFS" ]]; then
         --text="Do you want \"$username\" to be owner of this volume?"; then
         setowner="true"; fi
    else
+        erase_title
+        echo -en "$choices\n"
         read -p "Do you want \"$username\" to be owner of this volume [Y/N]? " getowner
         getowner=${getowner^^}
         while [[ $getowner != "Y" && $getowner != "N" ]]; do
@@ -1353,6 +1392,7 @@ if [[ $fstyp == "EXT"* || $fstyp == "JHFS+" || $fstyp == "APFS" ]]; then
               getowner=${getowner^^}
         done
         if [[ $getowner == "Y" ]]; then setowner="true"; fi
+        choices+="Volume Owner: ${setowner^^}\n"
    fi
 fi
 
@@ -1360,6 +1400,8 @@ if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]] && [[ $prtshm != "SFD" && -e $res
    if   [[ "$usezenity" == "true" ]]; then
          if zenity --question --title="UEFI:NTFS" --text="Enable UEFI boot support?"; then uefint="Y"; else uefint="N"; fi
    else
+        erase_title
+        echo -en "$choices\n"
         read -p "Enable UEFI boot support [Y/N]? " uefint
         uefint=${uefint^^}
         while [[ $uefint != "Y" && $uefint != "N" ]]; do
@@ -1369,6 +1411,7 @@ if [[ $fstyp == "EXFAT" || $fstyp == "NTFS" ]] && [[ $prtshm != "SFD" && -e $res
         done
    fi
    if [[ "$uefint" == "Y" ]]; then uefiboot="true"; fi
+   choices+="UEFI-NTFS:    ${uefiboot^^}\n"
 fi
 
 if [[ $fstyp == "UDF" && "$system" == "Linux" ]]; then
@@ -1376,11 +1419,13 @@ if [[ $fstyp == "UDF" && "$system" == "Linux" ]]; then
         if zenity --question --title="UDF Volume Descriptor" \
         --text="Set owner, organization and contact information?"; then setudfinfo="Y"; else setudfinfo="N"; fi
    else
-        read -p "Set owner, organization and contact information [Y/N]?" setudfinfo
+        erase_title
+        echo -en "$choices\n"
+        read -p "Set owner, organization and contact information [Y/N]? " setudfinfo
         setudfinfo=${setudfinfo^^}
         while [[ $setudfinfo != "Y" && $setudfinfo != "N" ]]; do
               echo -e "${RED}Invalid entry. Try again.${NC}"
-              read -p "Set owner, organization and contact information [Y/N]?" setudfinfo
+              read -p "Set owner, organization and contact information [Y/N]? " setudfinfo
               setudfinfo=${setudfinfo^^}
         done
    fi
@@ -1393,6 +1438,8 @@ if [[ $fstyp == "UDF" && "$system" == "Linux" ]]; then
            udfcontact=$(zenity --entry --title="BOOTDISK: Erase/Wipe" --text="Contact Information:")
            if [[ $? -ne 0 || -z "$udfcontact" ]]; then udfcontact="empty"; fi
       else
+           erase_title
+           echo -en "$choices\n"
            read -p "Volume Owner [$username]: " udfowner
            if [[ -z "$udfowner" ]]; then udfowner="$username"; fi
            read -p "Organization Name: " udforg
@@ -1403,13 +1450,17 @@ if [[ $fstyp == "UDF" && "$system" == "Linux" ]]; then
       if [[ "${udfowner,,}" != "empty" ]]; then udfdata[0]="$udfowner"; fi
       if [[ "${udforg,,}" != "empty" ]]; then udfdata[1]="$udforg"; fi
       if [[ "${udfcontact,,}" != "empty" ]]; then udfdata[2]="$udfcontact"; fi
+      udfinfo="true"
    fi
+   choices+="Volume Info:  ${udfinfo^^}\n"
 fi
 
 if   [[ "$usezenity" == "true" ]]; then
      volname=$(zenity --entry --title="BOOTDISK: Erase/Wipe" --text="Volume Label:" --entry-text="STORAGE")
      if [[ $? -ne 0 ]]; then return; fi
 else
+     erase_title
+     echo -en "$choices\n"
      read -p "Enter label [STORAGE]: " volname
 fi
 n=${#volname}
@@ -1453,7 +1504,7 @@ elif [[ $fstyp == "EXT"* ]]; then
 fi
 if [[ -z "$volname" ]]; then volname=STORAGE; fi
 
-echo
+if [[ "$usezenity" == "false" ]]; then erase_title; choices+="Volume Label: $volname\n"; echo -en "$choices\n"; fi
 (cd $resdir/Support; ./erasedisk.sh $system $tgtdsk $prtshm $fstyp $fmtyp $verbose $uefiboot "$volname" $setowner $usezenity "${udfdata[@]}")
 }
 

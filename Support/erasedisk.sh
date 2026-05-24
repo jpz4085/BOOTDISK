@@ -33,7 +33,7 @@ if  [[ "$usezenity" == "true" ]]; then
        fi
     fi
     zenprogargs+=' --no-cancel --title="BOOTDISK: Erase Disk"'
-    zenvfmtargs='zenity --width=550 --height=400 --text-info --title="Verbose Format Information"'
+    zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
 fi
 
 if   [[ $prtshm == "MBR" ]]; then
@@ -259,7 +259,7 @@ if   [[ $system == "Darwin" && -e /dev/$drive ]]; then
         if [[ $uefint == "true" ]]; then
            sudo dd if=uefi-ntfs.img of=/dev/$drive's2' 2> /dev/null
         fi
-        volume_size=$(diskutil info $drive's1' | grep 'Volume Total Space:' | awk '{print $6}' | cut -c2-)
+        volume_size=$(diskutil info $drive's1' | grep 'Disk Size:' | awk '{print $6}' | cut -c2-)
         tgtvol=$drive's1'
      fi
      if [[ $prtshm == "SFD" ]]; then sleep 1; volume_size=$disk_size; fi
@@ -363,8 +363,10 @@ if   [[ $system == "Darwin" && -e /dev/$drive ]]; then
      fi
 elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      if   [[ "$usezenity" == "true" ]]; then
-          zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-          if [[ $? -ne 0 ]]; then exit 1; fi
+          if ! sudo -nv 2>/dev/null; then
+	     zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	     if [[ $? -ne 0 ]]; then exit 1; fi
+	  fi
      else
           echo "Reading device information (sudo required)..."
      fi
