@@ -843,52 +843,72 @@ if [[ "$usezenity" == "false" ]]; then
 fi
 }
 
-linux_other () {
+linux_other_title () {
 clear
-if [[ "$usezenity" == "false" ]]; then
-   echo "      Linux and Other Script      "
-   echo "----------------------------------"
-fi
+echo "       Linux and Other Script        "
+echo "-------------------------------------"
+}
+
+linux_other () {
 wipedisk="false"
 ddmode="false"
 datapart="false"
+verbose="false"
 prtshm="CURRENT"
 pstpart="N/A"
 fstyp="N/A"
+fmtyp="N/A"
+fspst="N/A"
+fmpst="N/A"
+image="N/A"
 volname="N/A"
 fmtopts="FAT16|FAT32"
 ubtdistrolist="elementary|Ubuntu|Mint|Pop_OS|Zorin|neon"
 pstcompatlist="$ubtdistrolist|d-live|Fedora|CDROM|gentoo"
-if   [[ "$usezenity" == "true" ]]; then
-     image=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
-     if [[ $? -ne 0 ]]; then return; fi
-else
-     read -p "Enter path to file: " image
-fi
-while [[ ! -f "$image" ]]; do
+while true; do
       if   [[ "$usezenity" == "true" ]]; then
-           zenity --error --title="File Error" --text="Unable to access image file. Try again."
-           image=$(zenity --file-selection --title="Select an ISO file" --file-filter="ISO Files|*.iso" 2> /dev/null)
+           image=$(zenity --file-selection --title="Select a disk image" --file-filter="ISO Files|*.iso" --file-filter="All files | *" 2> /dev/null)
            if [[ $? -ne 0 ]]; then return; fi
       else
-           echo -e "${RED}Unable to access image file. Try again.${NC}"
+           if [[ "$image" == "N/A" ]]; then linux_other_title; fi
            read -p "Enter path to file: " image
       fi
+      while [[ ! -f "$image" ]]; do
+            if   [[ "$usezenity" == "true" ]]; then
+                 zenity --error --title="File Error" --text="Unable to access image file. Try again."
+                 image=$(zenity --file-selection --title="Select a disk image" --file-filter="ISO Files|*.iso" --file-filter="All files | *" 2> /dev/null)
+                 if [[ $? -ne 0 ]]; then return; fi
+            else
+                 echo -e "${RED}Unable to access image file. Try again.${NC}"
+                 read -p "Enter path to file: " image
+            fi
+      done
+      if file "$image" | grep -q 'ISO 9660 CD-ROM filesystem data'; then isofile="true"; else isofile="false"; fi
+      choices="Image file:   $(basename "$image")\n"
+      if   [[ "$system" == "Darwin" ]]; then
+           isodevinfo=$(hdiutil attach -nomount "$image" 2> /dev/null | head -n1)
+           isoblkdev=$(echo "$isodevinfo" | awk '{print $1}')
+           prtable=$(echo "$isodevinfo" | awk '{print $2}')
+           hdiutil detach $isoblkdev &> /dev/null
+      elif [[ "$system" == "Linux" ]]; then
+           prtable=$(fdisk -l "$image" 2> /dev/null | grep 'Disklabel type:')
+      fi
+      if [[ "$isofile" == "true" || ! -z "$prtable" ]]; then break; fi
+      if   [[ "$usezenity" == "true" ]]; then
+           zenity --error --title="Invalid Disk Image" --text="Image file does not have a partition table. Try again."
+           if [[ $? -ne 0 ]]; then return; fi
+      else
+           echo -e "${RED}Image file does not have a partition table. Try again.${NC}"
+      fi
 done
-if   [[ "$image" == *".iso"* ]]; then
-     if   [[ "$system" == "Darwin" ]]; then
-          isodevinfo=$(hdiutil attach -nomount "$image" | head -n1)
-          isoblkdev=$(echo "$isodevinfo" | awk '{print $1}')
-          prtable=$(echo "$isodevinfo" | awk '{print $2}')
-          hdiutil detach $isoblkdev > /dev/null
-     elif [[ "$system" == "Linux" ]]; then
-          prtable=$(fdisk -l "$image" 2> /dev/null | grep 'Disklabel type:')
-     fi
+if   [[ "$isofile" == "true" ]]; then
      if [[ ! -z "$prtable" ]]; then hybridiso="true"; else hybridiso="false"; fi
      if [[ "$hybridiso" == "true" ]]; then
         if   [[ "$usezenity" == "true" ]]; then
              if zenity --question --title="Direct Write" --text="Write image using the dd utility?"; then ddwrite="Y"; else ddwrite="N"; fi
         else
+             linux_other_title
+             echo -en "$choices\n"
              read -p "Write image using the dd utility [Y/N]? " ddwrite
              ddwrite=${ddwrite^^}
              while [[ $ddwrite != "Y" && $ddwrite != "N" ]]; do
@@ -898,11 +918,14 @@ if   [[ "$image" == *".iso"* ]]; then
              done
         fi
         if [[ "$ddwrite" == "Y" ]]; then prtshm="ERASE"; ddmode="true"; fi
+        choices+="Direct Write: ${ddmode^^}\n"
      fi
      if [[ "$hybridiso" == "false" || "$ddmode" == "false" ]]; then
         if   [[ "$usezenity" == "true" ]]; then
              if zenity --question --title="Erase Disk" --text="Wipe disk before extracting files?"; then wipe="Y"; else wipe="N"; fi
         else
+             linux_other_title
+             echo -en "$choices\n"
              read -p "Wipe disk before extracting files [Y/N]? " wipe
              wipe=${wipe^^}
              while [[ $wipe != "Y" && $wipe != "N" ]]; do
@@ -912,92 +935,44 @@ if   [[ "$image" == *".iso"* ]]; then
              done
         fi
         if [[ $wipe == "Y" ]]; then wipedisk="true"; fi
+        choices+="Erase Disk:   ${wipedisk^^}\n"
      fi
 else
      prtshm="ERASE"
 fi
 
 if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
-    if [[ "$system" == "Darwin" ]]; then
-    read -p "Enter target disk [disk#]: " target
-    while [[ $target != *"disk"* ]]; do
-          echo -e "${RED}Invalid disk name. Try again.${NC}"
-          read -p "Enter target disk [disk#]: " target
-    done
-    elif [[ "$system" == "Linux" ]]; then
-         if   [[ "$usezenity" == "true" ]]; then
-              target=$(eval zenity $zendevargs ${devices[@]})
-              if [[ $? -ne 0 ]]; then return; fi
-         else
-              read -p "Enter target disk [sd*]: " target
-              while [[ $target != *"sd"* ]]; do
-                    echo -e "${RED}Invalid disk name. Try again.${NC}"
-                    read -p "Enter target disk [sd*]: " target
-              done
-         fi
+    if   [[ "$usezenity" == "true" ]]; then
+         target=$(eval zenity $zendevargs ${devices[@]})
+         if [[ $? -ne 0 ]]; then return; fi
+    else
+         while :
+         do
+               linux_other_title
+               echo -en "$choices\n"
+               echo -e "$dev_menu_top"; printf "%s" "${devices[@]}"; echo "$dev_menu_btm"
+               read -p "Enter choice: " devnum
+               if   [[ $devnum == [1-9] && $devnum -le ${#devices[@]} ]]; then
+                    target=$(printf "%s" "${devices[(($devnum - 1))]}" | awk '{print $2}')
+                    choices+="Block Device: /dev/$target\n"
+                    break
+               else
+                    select_err
+               fi
+         done
     fi
     if [[ "$wipedisk" == "true" ]]; then
        if file "$image" | grep -qiE "MX-Live"; then
           if   [[ "$system" == "Darwin" ]]; then
                fmtopts+="|EXFAT"
           elif [[ "$system" == "Linux" ]]; then
-               fmtopts+="|EXT4"
+               fmtopts+="|EXT2|EXT3|EXT4"
           fi
        fi
-       if   [[ "$usezenity" == "true" ]]; then
-            layout=$(zenity --forms --title="BOOTDISK: Linux/Other" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="MBR|GPT" --add-combo="Format Options" --combo-values="$fmtopts")
-            if [[ $? -ne 0 ]]; then return; fi
-            prtshm=$(echo $layout | awk -F'|' '{print $1}')
-            fstyp=$(echo $layout | awk -F'|' '{print $2}')
-       else
-            read -p "Enter partition scheme [GPT/MBR]: " prtshm
-            prtshm=${prtshm^^}
-            while [[ $prtshm != "GPT" && $prtshm != "MBR" ]]; do
-                  echo -e "${RED}Invalid partition scheme. Try again.${NC}"
-                  read -p "Enter partition scheme [GPT/MBR]: " prtshm
-                  prtshm=${prtshm^^}
-            done
-            read -p "Enter file system [$fmtopts]: " fstyp
-            fstyp=${fstyp^^}
-            while [[ $fstyp != "FAT16" && $fstyp != "FAT32" && 
-                     $fstyp != "EXT4" && $fstyp != "EXFAT" ]]; do
-                  echo -e "${RED}Invalid file system type. Try again.${NC}"
-                  read -p "Enter file system [$fmtopts]: " fstyp
-                  fstyp=${fstyp^^}
-            done
-       fi
-       shopt -s extglob
-       volname=$(file "$image" | awk -F"'" '{for (i=2; i<=NF; i+=2) print $i}' | head -c 11)
-       volname=${volname//[\*\?\/\\\|\,\;\:\+\=\<\>\[\]\"\.]/}
-       volname=${volname##*( )}
-       volname=${volname%%*( )}
-       volname=${volname^^}
-       if   [[ "$usezenity" == "true" ]]; then
-            newvolname=$(zenity --entry --title="BOOTDISK: Linux/Other" --text="Volume Label:" --entry-text="$volname")
-            if [[ $? -ne 0 ]]; then return; fi
-       else
-            read -p "Enter label [$volname]: " newvolname
-       fi
-       if [[ ! -z "$newvolname" && "$newvolname" != "$volname" ]]; then
-          n=${#newvolname}
-          while [ $n -gt 11 ]; do
-                if   [[ "$usezenity" == "true" ]]; then
-                     zenity --warning --title="Volume Name" --text="Label must be eleven characters or less."
-                     volname=$(zenity --entry --title="BOOTDISK: Linux/Other" --text="Volume Label:" --entry-text="$volname")
-                     if [[ $? -ne 0 ]]; then return; fi
-                else
-                     echo -e "${RED}Label must be eleven characters or less.${NC}"
-                     read -p "Enter label [$volname]: " newvolname
-                fi
-                n=${#newvolname}
-          done
-          volname="$newvolname"
-          volname=${volname^^}
-       fi
        if file "$image" | grep -qiE "$pstcompatlist"; then
-          if   [[ ! -z $(command -v mkfs.ext4) ]]; then
+          if   [[ ! -z $(command -v mke2fs) ]]; then
                if   [[ "$usezenity" == "true" ]]; then
-                    pstmaxsz=$($resdir/Support/linuxotherdisk.sh $system "$image" "$target" $prtshm getmaxsize false)
+                    pstmaxsz=$(Support/linuxotherdisk.sh $system "$image" "$target" "NONE" getmaxsize false)
                     pstpartsz=$(zenity --scale --title="BOOTDISK: Linux/Other" --text="Select size of persistent partition (MiB)." \
                     --value=0 --min-value=0 --max-value=$pstmaxsz --step=1024)
                     if [[ $? -ne 0 ]]; then return; fi
@@ -1007,6 +982,8 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
                          pstpartsz=$pstpartsz'M'
                     fi
                else
+                    linux_other_title
+                    echo -en "$choices\n"
                     read -p "Enter size of persistent partition [0M]: " pstpartsz
                fi
                if [[ ! -z "$pstpartsz" ]]; then
@@ -1037,10 +1014,13 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
                        done
                        if [[ ! -z "$pstpartsz" && ${pstpartsz%?} != "0" && "$pstpartsz" != "MAX" ]]; then
                           pstpart="$pstpartsz"
+                          choices+="Persistence:  $pstpart\n"
                           if   [[ "$usezenity" == "true" ]]; then
                                if zenity --question --title="Data Partition" --text="Would you like to create a data partition?"; \
                                then mkdataprt="Y"; else mkdataprt="N"; fi
                           else
+                               linux_other_title
+                               echo -en "$choices\n"
                                read -p "Would you like to create a data partition [Y/N]? " mkdataprt
                                mkdataprt=${mkdataprt^^}
                                while [[ $mkdataprt != "Y" && $mkdataprt != "N" ]]; do
@@ -1050,6 +1030,7 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
                                done
                           fi
                           if [[ $mkdataprt == "Y" ]]; then datapart="true"; fi
+                          choices+="Data Volume:  ${datapart^^}\n"
                        fi
                   fi
                fi
@@ -1059,6 +1040,8 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
                     --text="Allow linux to use the remaining space for persistence?"; \
                     then enablepst="Y"; else enablepst="N"; fi
                else
+                    linux_other_title
+                    echo -en "$choices\n"
                     read -p "Allow linux to use the remaining space for persistence [Y/N]? " enablepst
                     enablepst=${enablepst^^}
                     while [[ $enablepst != "Y" && $enablepst != "N" ]]; do
@@ -1068,24 +1051,193 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
                     done
                fi
                if [[ $enablepst == "Y" ]]; then pstpart="deferred"; fi
+               choices+="Persistence:  $pstpart\n"
           fi
+       fi
+       if   [[ "$usezenity" == "true" ]]; then
+            layout=$(zenity --forms --title="BOOTDISK: Linux/Other" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="MBR|GPT" --add-combo="File System" --combo-values="$fmtopts")
+            if [[ $? -ne 0 ]]; then return; fi
+            prtshm=$(echo $layout | awk -F'|' '{print $1}')
+            fstyp=$(echo $layout | awk -F'|' '{print $2}')
+            if [[ $fstyp == "EXT"* ]]; then ftopts="QUICK|FULL-READ|FULL-WRITE"; else ftopts="QUICK|FULL"; fi
+            layout=$(zenity --forms --title="BOOTDISK: Linux/Other" --text="Disk Properties" --add-combo="Partition Scheme" --combo-values="$prtshm" --add-combo="File System" --combo-values="$fstyp" --add-combo="Format Type" --combo-values="$ftopts")
+            if [[ $? -ne 0 ]]; then return; fi
+            fmtyp=$(echo $layout | awk -F'|' '{print $3}')
+            if [[ "$pstpart" != "N/A" ]]; then
+               if   [[ "$fstyp" != "EXT"* ]]; then
+                    layout=$(zenity --forms --title="BOOTDISK: Linux/Other" --text="Persistent Partition" --add-combo="File System" --combo-values="EXT2|EXT3|EXT4" --add-combo="Format Type" --combo-values="QUICK|FULL-READ|FULL-WRITE")
+                    fspst=$(echo $layout | awk -F'|' '{print $1}')
+                    fmpst=$(echo $layout | awk -F'|' '{print $2}')
+               else
+                    fspst="$fstyp"
+                    fmpst="$fmtyp"
+               fi
+            fi
+       else
+            prtshm=""
+            fstyp=""
+            fmtyp=""
+            if [[ "$pstpart" != "N/A" ]]; then
+               fspst=""
+               fmpst=""
+            fi
+            ptarr=(GPT MBR)
+            ptopts="(1) GPT\n(2) MBR"
+            while :
+            do
+                  if [[ -z "$prtshm" ]]; then
+                     linux_other_title
+                     echo -en "$choices\n"
+                     echo -en "Format Options:\n\n$ptopts\n\n"
+                     read -p "Enter choice: " ptnum
+                     if   [[ $ptnum == [1-9] && $ptnum -le ${#ptarr[@]} ]]; then
+                          prtshm=$(echo "${ptarr[(($ptnum - 1))]}")
+                          fslist=$(echo $fmtopts | sed 's/|/\\n /g' | awk '{n=1} {for (i = 1; i<= NF; i++) printf("(%d) %s", n++, $i);}')
+                          readarray -d'|' -t fsarr <<< $(echo $fmtopts)
+                          choices+="Disk Layout:  $prtshm\n"
+                     else
+                          select_err
+                     fi
+                  fi
+                  if [[ ! -z "$prtshm" && -z "$fstyp" ]]; then
+                     linux_other_title
+                     echo -en "$choices\n"
+                     echo -en "Format Options:\n\n$fslist\n\n"
+                     read -p "Enter choice: " fsnum
+                     if   [[ $fsnum == [1-9] && $fsnum -le ${#fsarr[@]} ]]; then
+                          fstyp=$(echo "${fsarr[(($fsnum - 1))]}")
+                          choices+="File System:  $fstyp\n"
+                          if   [[ $fstyp == "EXT"* ]]; then
+                               ftopts="(1) QUICK\n(2) FULL-READ\n(3) FULL-WRITE"
+                               ftarr=(QUICK FULL-READ FULL-WRITE)
+                          else
+                               ftopts="(1) QUICK\n(2) FULL"
+                               ftarr=(QUICK FULL)
+                          fi
+                     else
+                          select_err
+                     fi
+                  fi
+                  if [[ ! -z "$prtshm" && ! -z "$fstyp" && -z "$fmtyp" ]]; then
+                     linux_other_title
+                     echo -en "$choices\n"
+                     echo -en "Format Options:\n\n$ftopts\n\n"
+                     read -p "Enter choice: " ftnum
+                     if   [[ $ftnum == [1-9] && $ftnum -le ${#ftarr[@]} ]]; then
+                          fmtyp=$(echo "${ftarr[(($ftnum - 1))]}")
+                          choices+="Format Type:  $fmtyp\n"
+                          if [[ "$pstpart" == "N/A" ]]; then break; fi
+                     else
+                          select_err
+                     fi
+                   fi
+                   if [[ "$pstpart" != "N/A" && "$pstpart" != "deferred" ]]; then
+                      if   [[ "$fstyp" != "EXT"* ]]; then
+                           fspstarr=(EXT2 EXT3 EXT4)
+                           fmpstarr=(QUICK FULL-READ FULL-WRITE)
+                           if [[ -z "$fspst" ]]; then
+                              linux_other_title
+                              echo -en "$choices\n"
+                              echo -en "Persistence Options:\n\nFile System\n\n(1) EXT2\n(2) EXT3\n(3) EXT4\n\n"
+                              read -p "Enter choice: " fspstnum
+                              if   [[ $fspstnum == [1-9] && $fspstnum -le ${#fspstarr[@]} ]]; then
+                                   fspst=$(echo "${fspstarr[(($fspstnum - 1))]}")
+                                   choices+="Persistence:  $fspst\n"
+                              else
+                                   select_err
+                              fi
+                           fi
+                           if [[ ! -z "$fspst"  && -z "$fmpst" ]]; then
+                              linux_other_title
+                              echo -en "$choices\n"
+                              echo -en "Persistence Options:\n\nFormat Type\n\n(1) QUICK\n(2) FULL-READ\n(3) FULL-WRITE\n\n"
+                              read -p "Enter choice: " fmpstnum
+                              if   [[ $fmpstnum == [1-9] && $fmpstnum -le ${#fmpstarr[@]} ]]; then
+                                   fmpst=$(echo "${fmpstarr[(($fmpstnum - 1))]}")
+                                   choices+="Persistence:  $fmpst\n"
+                                   break
+                              else
+                                   select_err
+                              fi
+                           fi
+                      else
+                           fspst="$fstyp"
+                           fmpst="$fmtyp"
+                      fi
+                   fi
+            done
+       fi
+       if   [[ "$usezenity" == "true" ]]; then
+            if zenity --question --title="Verbose Format Option" \
+               --text="Display detailed filesystem information?"; then
+               verbose="true"
+            fi
+       else
+            linux_other_title
+            echo -en "$choices\n"
+            read -p "Display detailed filesystem information [Y/N]? " vfmtmode
+            vfmtmode=${vfmtmode^^}
+            while [[ $vfmtmode != "Y" && $vfmtmode != "N" ]]; do
+                  echo -e "${RED}Invalid entry. Try again.${NC}"
+                  read -p "Display detailed filesystem information [Y/N]? " vfmtmode
+                  vfmtmode=${vfmtmode^^}
+            done
+            if [[ $vfmtmode == "Y" ]]; then verbose="true"; fi
+            choices+="Verbose Mode: ${verbose^^}\n"
+       fi
+       shopt -s extglob
+       volname=$(file "$image" | awk -F"'" '{for (i=2; i<=NF; i+=2) print $i}' | head -c 11)
+       volname=${volname//[\*\?\/\\\|\,\;\:\+\=\<\>\[\]\"\.]/}
+       volname=${volname##*( )}
+       volname=${volname%%*( )}
+       volname=${volname^^}
+       if   [[ "$usezenity" == "true" ]]; then
+            newvolname=$(zenity --entry --title="BOOTDISK: Linux/Other" --text="Volume Label:" --entry-text="$volname")
+            if [[ $? -ne 0 ]]; then return; fi
+       else
+            linux_other_title
+            echo -en "$choices\n"
+            read -p "Enter label [$volname]: " newvolname
+       fi
+       if [[ ! -z "$newvolname" && "$newvolname" != "$volname" ]]; then
+          n=${#newvolname}
+          while [ $n -gt 11 ]; do
+                if   [[ "$usezenity" == "true" ]]; then
+                     zenity --warning --title="Volume Name" --text="Label must be eleven characters or less."
+                     volname=$(zenity --entry --title="BOOTDISK: Linux/Other" --text="Volume Label:" --entry-text="$volname")
+                     if [[ $? -ne 0 ]]; then return; fi
+                else
+                     echo -e "${RED}Label must be eleven characters or less.${NC}"
+                     read -p "Enter label [$volname]: " newvolname
+                fi
+                n=${#newvolname}
+          done
+          volname="$newvolname"
+          volname=${volname^^}
+       fi
+       if [[ "$usezenity" == "false" ]]; then
+          choices+="Volume Label: $volname\n"
        fi
     fi
 else
-    if [[ "$system" == "Darwin" ]]; then
-       read -p "Enter path to disk [/Volumes/Untitled]: " target
+    if   [[ "$system" == "Darwin" ]]; then
+         expath="/Volumes/Untitled"
     elif [[ "$system" == "Linux" ]]; then
-         if   [[ "$usezenity" == "true" ]]; then
-              target=$(zenity --file-selection --directory --title="Select the destination drive" 2> /dev/null)
-              if [[ $? -ne 0 ]]; then return; fi
-         else
-              read -p "Enter path to disk [/media/user/USBDISK]: " target
-         fi
+         expath="/media/user/USBDISK"
+    fi
+    if   [[ "$usezenity" == "true" ]]; then
+         target=$(zenity --file-selection --directory --title="Select the destination drive" 2> /dev/null)
+         if [[ $? -ne 0 ]]; then return; fi
+    else
+         linux_other_title
+         echo -en "$choices\n"
+         read -p "Enter path to disk [$expath]: " target
+         choices+="Target Volume: $target\n"
     fi
 fi
 
-echo
-(cd $resdir/Support; ./linuxotherdisk.sh $system "$image" "$target" $prtshm $pstpart $datapart $fstyp "$volname" $usezenity)
+if [[ "$usezenity" == "false" ]]; then linux_other_title; echo -en "$choices\n"; fi
+(cd $resdir/Support; ./linuxotherdisk.sh $system "$image" "$target" $prtshm $pstpart $datapart $fstyp $fmtyp $fspst $fmpst $verbose "$volname" $usezenity)
 }
 
 erase_disk () {

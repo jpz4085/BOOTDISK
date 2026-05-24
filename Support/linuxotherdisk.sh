@@ -26,8 +26,12 @@ prtshm="$4"
 pstpart="$5"
 datapart="$6"
 fstyp="$7"
-label="$8"
-usegui="$9"
+fmtyp="$8"
+fspst="$9"
+fmpst="${10}"
+verbose="${11}"
+label="${12}"
+usezenity="${13}"
 erase="false"
 persist="false"
 hasgrub="false"
@@ -35,7 +39,6 @@ usblabel="false"
 overlay="false"
 pupsave="false"
 pipeview="false"
-fatsz=${fstyp:3}
 
 kbyte=1024
 mbyte=1048576
@@ -47,14 +50,23 @@ datapartsz=0
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-if  [[ "$usegui" == "true" ]]; then
-    usezenity="true"
+if [[ ! -z $(command -v pv) ]]; then pipeview="true"; fi
+
+if  [[ "$usezenity" == "true" ]]; then
     zenprogargs='--width=300 --progress --no-cancel --title="BOOTDISK: Linux/Other"'
-else
-    usezenity="false"
+    zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
+    zenwipeargs="$zenprogargs"
+    if [[ $fmtyp == "FULL"* ]]; then
+       if [[ $fstyp == "EXT"* || ($fstyp == "FAT"* && $pipeview == "false") ]]; then
+          zenwipeargs+=' --pulsate'
+       fi
+    fi
 fi
 
-if [[ ! -z $(command -v pv) ]]; then pipeview="true"; fi
+if [[ $verbose == "true" ]]; then
+   dspmode="-v"
+   boarder="-------------------------------------"
+fi
 
 if [[ $prtshm == "MBR" ]]; then
    if [[ $fstyp == "FAT16" ]]; then pty=e; fi #FAT16 LBA
@@ -70,14 +82,44 @@ if [[ $prtshm == "GPT" ]]; then
    fi
    erase="true"
 fi
+if [[ $fstyp == "FAT"* ]] ; then
+   mkftargs=(-F ${fstyp:3})
+   if [[ $system == "Linux" ]]; then
+      isovolpath="/mnt/isovolume"
+      isovolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
+      if [[ $fmtyp == "FULL" ]]; then mkftargs+=(-c); fi
+      if [[ $verbose == "true" ]]; then mkftargs+=(-v); fi
+   fi
+fi
+if [[ $fstyp == "EXT"* ]]; then
+   mke2isoargs=(-t "${fstyp,,}")
+   if   [[ $fmtyp == "FULL-READ" ]]; then
+        mke2isoargs+=(-c)
+   elif [[ $fmtyp == "FULL-WRITE" ]]; then
+        mke2isoargs+=(-cc)
+   fi
+   mke2isoargs+=(-L "$label")
+fi
 if [[ $prtshm == "ERASE" ]]; then
    erase="true"                         #Wipe disk and apply image.
    if [[ $pipeview == "false" ]]; then
       zenprogargs+=' --pulsate'         #No progress bar without pipeviewer.
    fi
 fi
+if [[ $prtshm == "NONE" && "$pstpart" == "getmaxsize" ]]; then
+   erase="true"                       #Get maximum size for persistence partition.
+fi
 if [[ $prtshm == "CURRENT" ]]; then
    erase="false"                      #Just extract image to disk.
+   if [[ $system == "Linux" ]]; then
+      ufdvolpath="$drive"
+      format=$(lsblk -o path,fstype,mountpoint | grep "$drive" | awk '{print $2}')
+      if [[ $format == "vfat" ]]; then
+         ufdvolpath="/mnt/ufdvolume"
+         ufdvolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
+         device=$(lsblk -o path,fstype,mountpoint | grep "$drive" | awk '{print $1}')
+      fi
+   fi
 fi
 
 isolabel=$(file "$isofile" | awk -F"'" '{for (i=2; i<=NF; i+=2) print $i}')
@@ -92,6 +134,13 @@ if [[ "$pstpart" != "N/A" ]]; then
    if echo "$isolabel" | grep -qiE "d-live"; then extlabel="persistence"; fi
    if echo "$isolabel" | grep -qiE "CDROM"; then pupsave="true"; fi
    if [[ "$datapart" == "true" && ! -z $(command -v mkfs.exfat) ]]; then mkexfat="true"; fi
+   mke2pstargs=(-t "${fspst,,}")
+   if   [[ $fmpst == "FULL-READ" ]]; then
+        mke2pstargs+=(-c)
+   elif [[ $fmpst == "FULL-WRITE" ]]; then
+        mke2pstargs+=(-cc)
+   fi
+   mke2pstargs+=(-L "$extlabel")
 fi
 
 if echo "$isolabel" | grep -qiE "Fedora|gentoo"; then
@@ -224,7 +273,7 @@ if [[ $system == "Linux" ]] ; then
       echo "Write files to disk: 100%"
    fi
    
-   if [[ $fstyp == "EXT4" ]] ; then
+   if [[ $fstyp == "EXT"* ]] ; then
       if [[ "$usezenity" == "true" ]]; then printf "# "; fi
       echo "Set owner and permissions..."
       sudo chown -R root:root "$2"
@@ -312,8 +361,15 @@ if [[ $overlay == "true" ]]; then
         sudo dd if=/dev/zero of="$2"/persistence.img bs="$3" count=$volfreeblks status=none
    fi
    if [[ "$usezenity" == "true" ]]; then echo "80"; printf "# "; fi
-   echo "Formatting persistent overlay image..."
-   sudo mkfs.ext4 -q -L persistence "$2"/persistence.img > /dev/null
+   echo "Creating $fspst file system on overlay image..."
+   if   [[ $system == "Linux" ]]; then
+        sudo mke2fs -q -t "${fspst,,}" -L persistence "$2"/persistence.img
+   elif [[ $system == "Darwin" ]]; then
+        mke2pstargs=(${mke2pstargs[@]//$extlabel/persistence}) #Update image volume label.
+        if [[ $verbose == "true" ]]; then echo $boarder; fi
+        sudo mke2fs "${mke2pstargs[@]}" "$2"/persistence.img
+        if [[ $verbose == "true" ]]; then echo $boarder; fi
+   fi
    if   [[ $system == "Linux" ]]; then
         if [[ "$usezenity" == "true" ]]; then echo "85"; printf "# "; fi
         echo "Creating folders on the persistent image..."
@@ -364,7 +420,7 @@ fi
 
 mkgrubefi () {
 echo "Move grub boot folders to EFI..."
-if   [[ $fstyp == "EXT4" ]] ; then
+if   [[ $fstyp == "EXT"* ]] ; then
      mv "$1"/EFI "$2"
      mkdir -p "$2"/boot/grub
      cp "$1"/"$efigrubcfg" "$2"/boot/grub/grub.cfg
@@ -409,6 +465,108 @@ elif grep -q "isolinux" "$1/$2.txt"; then
           sed -i 's/isolinux/syslinux/g' "$1/$2.txt"
      fi
 fi
+}
+
+zero_part () {
+ddargs="conv=fsync oflag=direct status=none"
+if   [[ $pipeview == "true" ]]; then
+     if   [[ "$usezenity" == "true" ]]; then
+          (echo "# Writing zeros to \"$4\" volume..."; pv < /dev/zero -ns $3 | \
+          sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenwipeargs
+     else
+          pv < /dev/zero -N "Writing zeros to \"$4\" volume" -pebs $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
+     fi
+else
+     (
+     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+     echo "Writing zeros to \"$4\" volume..."
+     sudo dd if=/dev/zero of=/dev/$1 bs=$2 $ddargs 2> /dev/null
+     if [[ "$usezenity" == "true" ]]; then echo "100"; fi
+     ) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenwipeargs; else cat; fi
+fi
+}
+
+show_progress () {
+   {
+   count=0
+   prevsize=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+   
+   while true; do
+         cursize=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+         if [[ ($cursize -lt $prevsize) ]]; then break; fi
+         prevsize=$cursize
+   done
+   
+   prevpct=$(((($volume_size - ($prevsize * 1024)) * 100) / $volume_size))
+   if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+   
+   if   [[ $prevpct -le 50 ]]; then
+        echo "Waiting while data is buffered..."
+        while true; do
+              sleep 1
+              cursize=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+              bufpct=$(((($volume_size - ($cursize * 1024)) * 100) / $volume_size))
+              if [[ ($cursize -lt $prevsize) && ($bufpct -gt $prevpct) ]]; then ((count++)); fi
+              if [[ $count -eq 5 ]]; then break; fi
+              prevsize=$cursize
+              prevpct=$bufpct
+        done
+   else
+        echo "Zeros are being written to $1 volume..."
+        while kill -0 $BUFF_PID 2> /dev/null; do sleep 1; done
+   fi
+   if [[ "$usezenity" == "true" ]]; then echo "100"; fi
+   } | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs --pulsate --auto-close; else cat; fi
+   
+   if ! kill -0 $BUFF_PID 2> /dev/null; then return; fi
+
+   {
+   while kill -0 $BUFF_PID 2> /dev/null; do
+         if [[ "$usezenity" == "true" ]]; then
+            echo "# Writing zeros to $1 volume..."  
+         fi
+         dirty=$(cat /proc/meminfo | grep Dirty | awk '{print $2}')
+         bufpct=$(((($volume_size - ($dirty * 1024)) * 100) / $volume_size))
+         if   [[ "$usezenity" == "true" ]]; then
+              echo $bufpct
+         else
+              echo -ne "Writing zeros to $1 volume:" $bufpct"%"\\r
+         fi
+   done
+
+   if   [[ "$usezenity" == "true" ]]; then
+        echo 100
+   else
+        echo "Writing zeros to $1 volume: 100%"
+   fi
+   } | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs; else cat; fi
+}
+
+display_verbose () {
+echo $boarder
+if   [[ $fmtyp == "FULL" ]]; then
+     if [[ $fstyp == "NTFS" ]]; then sed -i "$sedfmtcmds" "$vbfmtinfo"; fi # Remove extraneous lines.
+     cat "$vbfmtinfo" | if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+     rm "$vbfmtinfo"
+else
+     readarray -u "${BUFF[0]}" vbfmtout
+     printf "%s" "${vbfmtout[@]}" | if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+fi
+echo $boarder
+}
+
+umount_isovolume () {
+if ! sudo -nv 2>/dev/null; then
+   #Request credentials for unmount if expired.
+   if   [[ "$usezenity" == "true" ]]; then
+        echo "# Remove temporary mount point..."
+        zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+   else
+        echo "Remove temporary mount point (sudo required)..."
+   fi
+fi
+sudo umount $1 && sudo rm -r $1
+gio mount -d $2
 }
 
 # Verify selected drive is valid and run actions.
@@ -598,28 +756,104 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
               fi
          fi
          if   [[ $fstyp == "FAT16" || $fstyp == "FAT32" ]]; then
+              mkftargs+=(-u $spt -h $hds -v "$label")
               if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
-              sudo newfs_msdos -u $spt -h $hds -F $fatsz -v "$label" /dev/$drive's'$isopart > /dev/null
+              if [[ $fmtyp == "FULL" ]]; then
+                 volume_size=$(diskutil info $drive's'$isopart | grep 'Disk Size:' | awk '{print $5}' | cut -c2-)
+                 zero_part $drive's'$isopart '4m' $volume_size "$label"
+              fi
+              if   [[ $verbose == "true" ]]; then
+                   echo "Creating $fstyp file system on \"$label\" volume..."
+                   echo $boarder
+                   sudo newfs_msdos "${mkftargs[@]}" /dev/$drive's'$isopart
+                   echo $boarder
+              else
+                   sudo newfs_msdos "${mkftargs[@]}" /dev/$drive's'$isopart > /dev/null
+              fi
          elif [[ $fstyp == "EXFAT" ]]; then
               if [[ $hasgrub == "true" ]]; then efipart=2; else efipart=1; fi
               if [[ $hasgrub == "true" ]]; then isopart=3; else isopart=2; fi
-                 sudo newfs_msdos -u $spt -h $hds -F 32 -v GRUB /dev/$drive's'$efipart > /dev/null
-                 sudo newfs_exfat -v $label /dev/$drive's'$isopart > /dev/null
-                 vsnbytes=$(sudo dd if=/dev/$drive's'$isopart skip=100 bs=1 count=4 2>/dev/null | hexdump -e '4/4 "%X"')
+              if [[ $fmtyp == "FULL" ]]; then
+                 volume_size=$(diskutil info $drive's'$efipart | grep 'Disk Size:' | awk '{print $5}' | cut -c2-)
+                 zero_part $drive's'$efipart '4m' $volume_size GRUB
+              fi
+              mkgefiargs=(-u $spt -h $hds -F 32 -v GRUB)
+              if   [[ $verbose == "true" ]]; then
+                   echo "Creating FAT32 file system on GRUB volume..."
+                   echo $boarder
+                   sudo newfs_msdos "${mkgefiargs[@]}" /dev/$drive's'$efipart
+                   echo $boarder
+              else
+                   sudo newfs_msdos "${mkgefiargs[@]}" /dev/$drive's'$efipart > /dev/null
+              fi
+              if [[ $fmtyp == "FULL" ]]; then
+                 volume_size=$(diskutil info $drive's'$isopart | grep 'Disk Size:' | awk '{print $5}' | cut -c2-)
+                 zero_part $drive's'$isopart '4m' $volume_size "$label"
+              fi
+              if   [[ $verbose == "true" ]]; then
+                   echo "Creating exFAT file system on \"$label\" volume..."
+                   echo $boarder
+                   sudo newfs_exfat -v "$label" /dev/$drive's'$isopart
+                   echo $boarder
+              else
+                   sudo newfs_exfat -v "$label" /dev/$drive's'$isopart > /dev/null
+              fi
+              vsnbytes=$(sudo dd if=/dev/$drive's'$isopart skip=100 bs=1 count=4 2>/dev/null | hexdump -e '4/4 "%X"')
          fi
          if [[ "$persist" == "true" ]]; then
             if [[ $hasgrub == "true" ]]; then extpart=3; else extpart=2; fi
+            if [[ $verbose == "false" ]]; then dspmode="-q"; fi
+            mke2pstargs+=($dspmode)
             if   [[ "$overlay" == "true" ]]; then
-                 sudo newfs_exfat -v $extlabel /dev/$drive's'$extpart > /dev/null
+                 if [[ $fmpst == "FULL"* ]]; then
+                    diskutil zeroDisk short $drive's'$extpart > /dev/null
+                 fi
+                 if   [[ $verbose == "true" ]]; then
+                      echo "Creating exFAT file system on $extlabel volume..."
+                      echo $boarder
+                      sudo newfs_exfat -v $extlabel /dev/$drive's'$extpart
+                      echo $boarder
+                 else
+                      sudo newfs_exfat -v $extlabel /dev/$drive's'$extpart > /dev/null
+                 fi
             else
-                 sudo mkfs.ext4 -q -L $extlabel /dev/$drive's'$extpart > /dev/null
+                 if [[ $fmpst == "FULL"* || $verbose == "true" ]]; then
+                    echo "Creating $fspst file system on $extlabel volume..."
+                 fi
+                 if [[ $verbose == "true" ]]; then echo $boarder; fi
+                 diskutil zeroDisk short $drive's'$extpart > /dev/null
+                 sudo mke2fs "${mke2pstargs[@]}" /dev/$drive's'$extpart
+                 if [[ $verbose == "true" ]]; then echo $boarder; fi
             fi
             if [[ $datapartsz != "0"  ]]; then
                if [[ $hasgrub == "true" ]]; then fatpart=4; else fatpart=3; fi
                if   [[ "$datafs" == "FAT16" || "$datafs" == "FAT32" ]]; then
-                    sudo newfs_msdos -u $spt -h $hds -F ${datafs:3} -v DATA /dev/$drive's'$fatpart > /dev/null
+                    if [[ $fmtyp == "FULL" ]]; then
+                       volume_size=$(diskutil info $drive's'$fatpart | grep 'Disk Size:' | awk '{print $5}' | cut -c2-)
+                       zero_part $drive's'$fatpart '4m' $volume_size DATA
+                    fi
+                    mkfdpargs=(-u $spt -h $hds -F ${datafs:3} -v DATA)
+                    if   [[ $verbose == "true" ]]; then
+                         echo "Creating $datafs file system on DATA volume..."
+                         echo $boarder
+                         sudo newfs_msdos "${mkfdpargs[@]}" /dev/$drive's'$fatpart
+                         echo $boarder
+                    else
+                         sudo newfs_msdos "${mkfdpargs[@]}" /dev/$drive's'$fatpart > /dev/null
+                    fi
                elif [[ "$datafs" == "EXFAT" ]]; then
-                    sudo newfs_exfat -v DATA /dev/$drive's'$fatpart > /dev/null
+                    if [[ $fmtyp == "FULL" ]]; then
+                       volume_size=$(diskutil info $drive's'$fatpart | grep 'Disk Size:' | awk '{print $5}' | cut -c2-)
+                       zero_part $drive's'$fatpart '4m' $volume_size DATA
+                    fi
+                    if   [[ $verbose == "true" ]]; then
+                         echo "Creating exFAT file system on DATA volume..."
+                         echo $boarder
+                         sudo newfs_exfat -v DATA /dev/$drive's'$fatpart
+                         echo $boarder
+                    else
+                         sudo newfs_exfat -v DATA /dev/$drive's'$fatpart > /dev/null
+                    fi
                fi
             fi
          fi
@@ -691,8 +925,10 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                disk_size=$(lsblk --nodeps -nbo SIZE /dev/$drive)
           else
                if   [[ "$usezenity" == "true" ]]; then
-	            zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	            if [[ $? -ne 0 ]]; then exit 1; fi
+	            if ! sudo -nv 2>/dev/null; then
+	               zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	               if [[ $? -ne 0 ]]; then exit 1; fi
+	            fi
 	       else
 	            echo "Reading device information (sudo required)..."
                fi
@@ -753,10 +989,10 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
                         datapartsz=$(($databytes / $mbyte))
                         if   [[ $databytes -gt $(($gbyte * 4)) && "$mkexfat" == "true" ]]; then
                              datapty=7; datafs="EXFAT"
-                        elif [[ $databytes -gt $(($mbyte * 500)) ]]; then
-                             datapty=c; datafs="FAT32"
-                        else
+                        elif [[ $databytes -le $(($mbyte * 500)) ]]; then
                              datapty=e; datafs="FAT16"
+                        else
+                             datapty=c; datafs="FAT32"
                         fi
                    else
                         if   [[ "$usezenity" == "true" ]]; then
@@ -779,7 +1015,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	     if   [[ $prtshm == "ERASE" ]]; then
 	          echo "0"; echo "# Initializing disk..."
              else
-	          echo "10"; printf "# "
+	          echo "5"; printf "# "
 	     fi
 	  fi
 	  echo "Erase MBR/GPT structures..."
@@ -792,7 +1028,8 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
            if [[ "$usezenity" == "false" ]]; then sleep 2; fi
            exit 0
 	  fi
-	  if [[ "$usezenity" == "true" ]]; then echo "15"; printf "# "; fi
+	  
+	  if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
 	  echo "Partition and format disk..."
 	  if [[ "$usezenity" == "true" && ! -t 0 ]]; then
 	     zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
@@ -806,7 +1043,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            sfdargs=(,$isopartsz'M',$pty,*\\n,$pstpart,L)
 	            if [[ $datapartsz != "0"  ]]; then sfdargs+=(\\n,$datapartsz'M',$datapty); fi
 	            echo -e "${sfdargs[@]}" | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
-	       elif [[ $fstyp == "EXT4" ]]; then
+	       elif [[ $fstyp == "EXT"* ]]; then
 	            echo -e ',50M,b\n,,L,*' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
 	       else
 	            echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
@@ -820,7 +1057,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            sfdargs+=(size=$pstpart,type=L,name='"'$extlabel'"')
 	            if [[ $datapartsz != "0"  ]]; then sfdargs+=(\\ntype=$pty,name='"'STORAGE'"'); fi
 	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
-	       elif [[ $fstyp == "EXT4" ]]; then
+	       elif [[ $fstyp == "EXT"* ]]; then
 	            sfdargs+=(size=50M,type=$pty,name='"'GRUB UEFI'"'\\n)
 	            sfdargs+=(type=L,name='"'$label'"')
 	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
@@ -829,42 +1066,130 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	       fi
 	  fi
-	  if   [[ $fstyp == "EXT4" ]] ; then
+	  if [[ $verbose == "false" ]]; then dspmode="-q"; fi
+	  if   [[ $fstyp == "EXT"* ]] ; then
+	       mke2isoargs+=($dspmode)
 	       if [[ $hasgrub == "true" ]]; then isopart=3; else isopart=2; fi
-	       sudo mkfs.ext4 -q -L "$label" /dev/$drive"$isopart" > /dev/null
+	       if [[ $fmtyp == "FULL"* || $verbose == "true" ]]; then
+	          if [[ "$usezenity" == "true" ]]; then echo "15"; printf "# "; fi
+	          echo "Creating $fstyp file system on \"$label\" volume..."
+	       fi
+	       if [[ $verbose == "true" ]]; then echo $boarder; fi
+	       sudo mke2fs "${mke2isoargs[@]}" /dev/$drive"$isopart" | \
+	       if [[ "$usezenity" == "true" && $verbose == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+	       if [[ $verbose == "true" ]]; then echo $boarder; fi
 	       if [[ $hasgrub == "true" ]]; then efipart=2; else efipart=1; fi
-	       sudo mkfs.fat -F 32 -n GRUB /dev/$drive"$efipart" > /dev/null
+	       mkgefiargs=(-F 32 -n GRUB)
+	       if [[ ($fmtyp == "FULL"* || $verbose == "true") && "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
+	       if [[ $fmtyp == "FULL"* ]]; then
+	          sudo dd if=/dev/zero of=/dev/$drive"$efipart" bs=1M status=none 2> /dev/null
+	          echo "Checking GRUB volume for bad blocks..."
+	          mkgefiargs+=(-c)
+	       fi
+	       if   [[ $verbose == "true" ]]; then
+	            if [[ $fmtyp == "QUICK" ]]; then
+	               echo "Creating FAT32 file system on GRUB volume..."
+	            fi
+	            mkgefiargs+=($dspmode)
+	            echo $boarder
+	            sudo mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" | \
+	            if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+	            echo $boarder
+	       else
+	            sudo mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" > /dev/null
+	       fi
 	  else
+	       if [[ ($fmtyp == "FULL"* || $verbose == "true") && "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	       if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
-	       sudo mkfs.fat -F $fatsz -n "$label" /dev/$drive"$isopart" > /dev/null
+	       mkftargs+=(-n "$label")
+	       if [[ $fmtyp == "FULL" ]]; then
+	          volume_size=$(sudo blockdev --getsize64 /dev/$drive"$isopart")
+                  zero_part $drive"$isopart" '4M' $volume_size "$label"
+                  echo "Checking \"$label\" volume for bad blocks..."
+               fi
+               if   [[ $verbose == "true" ]]; then
+                    if [[ $fmtyp == "QUICK" ]]; then
+	               echo "Creating $fstyp file system on \"$label\" volume..."
+	            fi
+                    echo $boarder
+                    sudo mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" | \
+                    if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+                    echo $boarder
+               else
+	            sudo mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" > /dev/null
+	       fi
 	  fi
 	  if [[ "$persist" == "true" ]]; then
+	     mke2pstargs+=($dspmode)
 	     if [[ $hasgrub == "true" ]]; then extpart=3; else extpart=2; fi
-	     sudo mkfs.ext4 -q -L "$extlabel" /dev/$drive"$extpart" > /dev/null
+	     if [[ $fmpst == "FULL"* || $verbose == "true" ]]; then
+	        if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+	        echo "Creating $fspst file system on $extlabel volume..."
+	     fi
+	     if [[ $verbose == "true" ]]; then echo $boarder; fi
+	     sudo mke2fs "${mke2pstargs[@]}" /dev/$drive"$extpart" | \
+	     if [[ "$usezenity" == "true" && $verbose == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+	     if [[ $verbose == "true" ]]; then echo $boarder; fi
 	     if [[ $datapartsz != "0" ]]; then
 	        if [[ $hasgrub == "true" ]]; then fatpart=4; else fatpart=3; fi
+	        volume_size=$(sudo blockdev --getsize64 /dev/$drive"$fatpart")
 	        if   [[ "$datafs" == "FAT16" || "$datafs" == "FAT32" ]]; then
-	             sudo mkfs.fat -F ${datafs:3} -n DATA /dev/$drive"$fatpart" > /dev/null
+	             if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+	             mkfdpargs=(-F ${datafs:3} -n DATA)
+	             if [[ $fmtyp == "FULL"* ]]; then
+                        zero_part $drive"$fatpart" '4M' $volume_size 'DATA'
+                        echo "Checking DATA volume for bad blocks..."
+                        mkfdpargs+=(-c)
+                     fi
+                     if   [[ $verbose == "true" ]]; then
+                          if [[ $fmtyp == "QUICK" ]]; then
+	                     echo "Creating $datafs file system on DATA volume..."
+	                  fi
+                          mkfdpargs+=($dspmode)
+                          echo $boarder
+                          sudo mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" | \
+                          if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
+                          echo $boarder
+                     else
+	                  sudo mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" > /dev/null
+	             fi
 	        elif [[ "$datafs" == "EXFAT" ]]; then
-	             sudo mkfs.exfat -L DATA /dev/$drive"$fatpart" > /dev/null
+	             mkexfdpargs=($dspmode -L DATA)
+	             if [[ $fmtyp == "FULL"* ]]; then
+	                mkexfdpargs+=(-f)
+	                if [[ $verbose == "true" ]]; then
+	                   vbfmtinfo=$(mktemp -t vbfmtout.XXXXXXX)
+	                fi
+	             fi
+	             if   [[ $fmtyp == "FULL" && $verbose == "true" ]]; then
+                          coproc BUFF (sudo mkfs.exfat "${mkexfdpargs[@]}" /dev/$drive"$fatpart") > "$vbfmtinfo"
+                     else
+                          coproc BUFF (sudo mkfs.exfat "${mkexfdpargs[@]}" /dev/$drive"$fatpart")
+                     fi
+                     if [[ ($fmtyp == "FULL" && "$usezenity" == "true") ||
+                           ($fmtyp == "QUICK" && $verbose == "true") ]]; then
+                        if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+                        echo "Creating exFAT file system on DATA volume..."
+                     fi
+                     if [[ $fmtyp == "FULL" ]]; then show_progress 'DATA'; fi
+                     if [[ $verbose == "true" ]]; then display_verbose; fi
+                     if [[ $fmtyp == "QUICK" && $verbose == "false" ]]; then wait $BUFF_PID; fi
 	        fi
 	     fi
 	  fi
-	  if [[ "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
+	  if [[ "$usezenity" == "true" ]]; then echo "25"; printf "# "; fi
 	  echo "Mount boot disk..." && sleep 1
 	  if   [[ -d "/media/$USER" ]]; then
 	       media_path="/media/$USER"
 	  elif [[ -d "/run/media/$USER" ]]; then
 	       media_path="/run/media/$USER"
 	  fi
-	  if   [[ $fstyp == "EXT4" ]] ; then
+	  if   [[ $fstyp == "EXT"* ]] ; then
 	       gio mount -d /dev/$drive"$efipart"
 	       gio mount -d /dev/$drive"$isopart"
 	       isovolpath="$media_path/$label"
 	       sudo chmod -R 777 "$isovolpath"
 	  else
-	       isovolpath="/mnt/isovolume"
-	       isovolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
 	       sudo mkdir $isovolpath
 	       sudo mount -o $isovolopts /dev/$drive"$isopart" $isovolpath
 	  fi
@@ -883,17 +1208,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  extract_files "$isofile" "$isovolpath" $pctval $pctdiv
 	  if [[ $fstyp == "FAT"* ]] ; then
-	     if ! sudo -nv 2>/dev/null; then
-	        #Request credentials for unmount if expired.
-	        if   [[ "$usezenity" == "true" ]]; then
-	             echo "# Remove temporary mount point..."
-	             zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	        else
-	             echo "Remove temporary mount point (sudo required)..."
-	        fi
-	     fi
-	     sudo umount $isovolpath && sudo rm -r $isovolpath
-	     gio mount -d /dev/$drive"$isopart"
+	     umount_isovolume $isovolpath /dev/$drive"$isopart"
 	  fi
 	  isolinuxdir=$(get_syslinux_path "$media_path/$label" isolinux)
 	  syslinuxdir=$(get_syslinux_path "$media_path/$label" syslinux)
@@ -905,7 +1220,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	       rename_isolinux "$(dirname "$isolinuxdir")"
 	  fi
-	  if [[ $fstyp == "EXT4" && -f "$media_path/$label/$efigrubcfg" ]]; then
+	  if [[ $fstyp == "EXT"* && -f "$media_path/$label/$efigrubcfg" ]]; then
 	     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	     mkgrubefi "$media_path/$label" "$media_path/GRUB"
 	  fi
@@ -939,7 +1254,15 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
       fi
 elif  [[ $erase == "false" && -e "$drive" ]]; then
       (
-      extract_files "$isofile" "$drive" "0" "1"
+      if [[ $format == "vfat" ]]; then
+         umount $device
+         sudo mkdir $ufdvolpath
+	 sudo mount -o $ufdvolopts $device $ufdvolpath
+      fi
+      extract_files "$isofile" "$ufdvolpath" "0" "1"
+      if [[ $format == "vfat" ]]; then
+         umount_isovolume $ufdvolpath $device
+      fi
       if [[ "$usezenity" == "true" ]]; then echo "100"; printf "# "; fi
       echo "Finished!"
       ) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenprogargs; else cat; fi
