@@ -972,7 +972,7 @@ if  [[ "$wipedisk" == "true" || "$prtshm" == "ERASE" ]]; then
        if file "$image" | grep -qiE "$pstcompatlist"; then
           if   [[ ! -z $(command -v mke2fs) ]]; then
                if   [[ "$usezenity" == "true" ]]; then
-                    pstmaxsz=$(Support/linuxotherdisk.sh $system "$image" "$target" "NONE" getmaxsize false)
+                    pstmaxsz=$($resdir/Support/linuxotherdisk.sh $system "$image" "$target" "NONE" getmaxsize false)
                     pstpartsz=$(zenity --scale --title="BOOTDISK: Linux/Other" --text="Select size of persistent partition (MiB)." \
                     --value=0 --min-value=0 --max-value=$pstmaxsz --step=1024)
                     if [[ $? -ne 0 ]]; then return; fi
