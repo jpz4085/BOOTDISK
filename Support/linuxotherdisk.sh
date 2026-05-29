@@ -472,8 +472,15 @@ zero_part () {
 ddargs="conv=fsync oflag=direct status=none"
 if   [[ $pipeview == "true" ]]; then
      if   [[ "$usezenity" == "true" ]]; then
-          (echo "# Writing zeros to \"$4\" volume..."; pv < /dev/zero -ns $3 | \
-          sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenwipeargs
+          (echo "# Writing zeros to \"$4\" volume..."
+          if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	      zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	      if [[ $? -ne 0 ]]; then
+	         echo "# Volume erase operation canceled."
+                 exit 1
+	      fi
+	  fi
+          pv < /dev/zero -ns $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenwipeargs
      else
           pv < /dev/zero -N "Writing zeros to \"$4\" volume" -pebs $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
      fi
@@ -1221,6 +1228,15 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       media_path="/media/$USER"
 	  elif [[ -d "/run/media/$USER" ]]; then
 	       media_path="/run/media/$USER"
+	  fi
+	  if [[ "$usezenity" == "true" ]]; then
+	     if ! sudo -nv 2>/dev/null; then
+	        zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	        if [[ $? -ne 0 ]]; then
+	           echo "# Disk mounting operation canceled."
+	           exit 1
+	        fi
+	     fi
 	  fi
 	  if   [[ $fstyp == "EXT"* ]] ; then
 	       if   gio mount -d /dev/$drive"$efipart"; then

@@ -569,8 +569,8 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	        ms-sys -w /dev/$drive"1" > /dev/null
 	   fi
 	fi
+	sleep 1
 	if [[ "$usezenity" == "true" ]]; then echo "30"; printf "# "; fi
-	echo "Mount boot disk..." && sleep 1
 	if   [[ -d "/media/$USER" ]]; then
 	     media_path="/media/$USER"
 	elif [[ -d "/run/media/$USER" ]]; then
@@ -578,6 +578,17 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	fi
 	if   [[ $fstyp == "FAT32" ]]; then
 	     winvolopts="defaults,nosuid,nodev,uid=$(id -u),gid=$(id -g),showexec,utf8"
+	     if   ! sudo -nv 2>/dev/null; then
+	          #Request credentials for mount if expired.
+	          printf "Mount boot disk"
+	          if   [[ "$usezenity" == "true" ]]; then
+	               echo "..."; zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	          else
+	               echo " (sudo required)..."
+	          fi
+             else
+	          echo "Mount boot disk..."
+	     fi
 	     sudo mkdir /mnt/winvolume
 	     sudo mount -o $winvolopts /dev/$drive"1" /mnt/winvolume
  	     if   [[ $wimsize -gt $(($gbyte * 4)) ]]; then
