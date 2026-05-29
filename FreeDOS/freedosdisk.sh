@@ -184,17 +184,22 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	sudo chmod o+rw /dev/$drive"1"
 	volume_size=$(blockdev --getsize64 /dev/$drive"1")
 	mkftargs+=(-n "$label")
+	fmtalert="false"
 	if [[ $fmtyp == "FULL" ]]; then
 	   if [[ $pipeview == "false" ]]; then zenwipeargs+=" --pulsate"; fi
 	   zero_part $drive"1" '4M' $volume_size
-	   if [[ "$usezenity" == "true" ]]; then echo "40"; printf "# "; fi
+	   if [[ "$usezenity" == "true" ]]; then
+	      if [[ $verbose == "true" ]]; then fmtalert="true"; fi
+	      echo "40"; printf "# "
+	   fi
 	   echo "Checking for bad blocks..."
 	   mkftargs+=(-c)
 	fi
 	if   [[ $verbose == "true" ]]; then
 	     mkftargs+=(-v)
 	     echo "-------------------------------------"
-	     mkfs.fat "${mkftargs[@]}" /dev/$drive"1" | \
+	     (mkfs.fat "${mkftargs[@]}" /dev/$drive"1" && \
+	     if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
 	     if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
 	     echo "-------------------------------------"
 	else

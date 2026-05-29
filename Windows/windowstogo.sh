@@ -287,12 +287,16 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
       echo -e ',350M,c,*\n,,7' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
       if [[ $verbose == "false" ]]; then dspmode="-q"; fi
       sudo chmod o+rw /dev/$drive"1"
+      fmtalert="false"
       mkftargs=(-F 32 -n "UFD-SYSTEM")
       if [[ $fmtyp == "FULL" ]]; then
          if [[ "$usezenity" == "true" ]]; then echo "25"; printf "# "; fi
          echo "Writing zeros to the system volume..."
          dd if=/dev/zero of=/dev/$drive"1" bs=1M status=none 2> /dev/null
-         if [[ "$usezenity" == "true" ]]; then echo "30"; printf "# "; fi
+         if [[ "$usezenity" == "true" ]]; then
+	    if [[ $verbose == "true" ]]; then fmtalert="true"; fi
+	    echo "30"; printf "# "
+	 fi
          echo "Checking system volume for bad blocks..."
          mkftargs+=(-c)
       fi
@@ -302,7 +306,8 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
 	   fi
            mkftargs+=($dspmode)
            echo $boarder
-           mkfs.fat "${mkftargs[@]}" /dev/$drive"1" | \
+           (mkfs.fat "${mkftargs[@]}" /dev/$drive"1" && \
+	   if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
            if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
            echo $boarder
       else

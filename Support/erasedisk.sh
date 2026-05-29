@@ -20,6 +20,7 @@ pipeview="false"
 mbyte=1048576
 gbyte=1073741824
 
+RED='\033[1;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
@@ -430,16 +431,29 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      if [[ "$usezenity" == "true" ]]; then echo "75"; printf "# "; fi
      echo "Create $fstyp file system..."
      if   [[ $fstyp == "FAT"* ]]; then
+          fmtalert="false"
           mkftargs+=(-n "$label")
           if [[ $fmtyp == "FULL" ]]; then
              zero_part $tgtvol '4M' $volume_size
+             if [[ "$usezenity" == "true" ]]; then
+	        if [[ $verbose == "true" ]]; then fmtalert="true"; fi
+	        echo "80"; printf "# "
+	     fi
              echo "Checking for bad blocks..."
              mkftargs+=(-c)
           fi
           if   [[ $verbose == "true" ]]; then
                mkftargs+=($dspmode)
                echo $boarder
-               sudo mkfs.fat "${mkftargs[@]}" /dev/$tgtvol | \
+               (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	           zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	           if [[ $? -ne 0 ]]; then
+	              echo "# Format operation canceled."
+                      exit 1
+	           fi
+	       fi
+               sudo mkfs.fat "${mkftargs[@]}" /dev/$tgtvol && \
+	       if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                echo $boarder
           else
@@ -491,6 +505,16 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi
      echo "Mount the disk..." && sleep 1
      gio mount -d /dev/$tgtvol
+     if [[ $? -ne 0 ]]; then
+        if   [[ "$usezenity" == "true" ]]; then
+             zenity --error --title="Mount Error" --text="Unable to mount: /dev/$tgtvol."
+        else
+             echo "${RED}Mount operation failed.${NC}"
+             echo
+             read -p "Press any key to continue... "
+        fi
+        exit 1
+     fi
      if   [[ "$usezenity" == "false" && ($fmtyp == "FULL" || $verbose == "true") ]]; then
           read -p "Finished! Press any key to exit." -n1 -s
      else

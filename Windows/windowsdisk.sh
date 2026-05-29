@@ -517,16 +517,22 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	volume_size=$(blockdev --getsize64 /dev/$drive"1")
 	if [[ $verbose == "false" ]]; then dspmode="-q"; fi
 	if   [[ $fstyp == "FAT32" ]]; then
+	     fmtalert="false"
 	     mkftargs=(-F 32 -n "$label")
 	     if [[ $fmtyp == "FULL" ]]; then
                 zero_part $drive"1" '4M' $volume_size
+                if [[ "$usezenity" == "true" ]]; then
+	           if [[ $verbose == "true" ]]; then fmtalert="true"; fi
+	           echo "25"; printf "# "
+	        fi
                 echo "Checking for bad blocks..."
                 mkftargs+=(-c)
              fi
 	     if   [[ $verbose == "true" ]]; then
                   mkftargs+=($dspmode)
                   echo $boarder
-                  mkfs.fat "${mkftargs[@]}" /dev/$drive"1" | \
+                  (mkfs.fat "${mkftargs[@]}" /dev/$drive"1" && \
+	          if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                   if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                   echo $boarder
              else

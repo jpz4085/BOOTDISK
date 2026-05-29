@@ -47,6 +47,7 @@ tbyte=1099511627776
 
 datapartsz=0
 
+RED='\033[1;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
@@ -569,6 +570,17 @@ sudo umount $1 && sudo rm -r $1
 gio mount -d $2
 }
 
+mount_error () {
+if   [[ "$usezenity" == "true" ]]; then
+     zenity --error --title="Mount Error" --text="$mnterror"
+else
+     echo -e "${RED}$mnterror${NC}"
+     echo
+     read -p "Press any key to continue... "
+fi
+exit 1
+}
+
 # Verify selected drive is valid and run actions.
 
 if    [[ $erase == "true" && -e /dev/$drive ]]; then
@@ -1066,6 +1078,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
 	       fi
 	  fi
+	  fmtalert="false"
 	  if [[ $verbose == "false" ]]; then dspmode="-q"; fi
 	  if   [[ $fstyp == "EXT"* ]] ; then
 	       mke2isoargs+=($dspmode)
@@ -1083,6 +1096,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       if [[ ($fmtyp == "FULL"* || $verbose == "true") && "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	       if [[ $fmtyp == "FULL"* ]]; then
 	          sudo dd if=/dev/zero of=/dev/$drive"$efipart" bs=1M status=none 2> /dev/null
+	          if [[ "$usezenity" == "true" && $verbose == "true" ]]; then fmtalert="true"; fi
 	          echo "Checking GRUB volume for bad blocks..."
 	          mkgefiargs+=(-c)
 	       fi
@@ -1092,7 +1106,15 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            fi
 	            mkgefiargs+=($dspmode)
 	            echo $boarder
-	            sudo mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" | \
+	            (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	                zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	                if [[ $? -ne 0 ]]; then
+	                   echo "# Format of GRUB volume canceled."
+                           exit 1
+	                fi
+	            fi
+	            sudo mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" && \
+	            if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
 	            if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
 	            echo $boarder
 	       else
@@ -1105,6 +1127,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       if [[ $fmtyp == "FULL" ]]; then
 	          volume_size=$(sudo blockdev --getsize64 /dev/$drive"$isopart")
                   zero_part $drive"$isopart" '4M' $volume_size "$label"
+                  if [[ "$usezenity" == "true" && $verbose == "true" ]]; then fmtalert="true"; fi
                   echo "Checking \"$label\" volume for bad blocks..."
                fi
                if   [[ $verbose == "true" ]]; then
@@ -1112,7 +1135,12 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	               echo "Creating $fstyp file system on \"$label\" volume..."
 	            fi
                     echo $boarder
-                    sudo mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" | \
+                    (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	                zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	                if [[ $? -ne 0 ]]; then exit 1; fi
+	            fi
+	            sudo mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" && \
+	            if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                     if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                     echo $boarder
                else
@@ -1138,6 +1166,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	             mkfdpargs=(-F ${datafs:3} -n DATA)
 	             if [[ $fmtyp == "FULL"* ]]; then
                         zero_part $drive"$fatpart" '4M' $volume_size 'DATA'
+                        if [[ "$usezenity" == "true" && $verbose == "true" ]]; then fmtalert="true"; fi
                         echo "Checking DATA volume for bad blocks..."
                         mkfdpargs+=(-c)
                      fi
@@ -1147,7 +1176,15 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	                  fi
                           mkfdpargs+=($dspmode)
                           echo $boarder
-                          sudo mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" | \
+                          (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	                      zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	                      if [[ $? -ne 0 ]]; then
+	                         echo "# Format of DATA volume canceled."
+                                 exit 1
+	                      fi
+	                  fi
+	                  sudo mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" && \
+	                  if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                           if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                           echo $boarder
                      else
@@ -1179,24 +1216,44 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  if [[ "$usezenity" == "true" ]]; then echo "25"; printf "# "; fi
 	  echo "Mount boot disk..." && sleep 1
+	  mnterror="N/A"
 	  if   [[ -d "/media/$USER" ]]; then
 	       media_path="/media/$USER"
 	  elif [[ -d "/run/media/$USER" ]]; then
 	       media_path="/run/media/$USER"
 	  fi
 	  if   [[ $fstyp == "EXT"* ]] ; then
-	       gio mount -d /dev/$drive"$efipart"
-	       gio mount -d /dev/$drive"$isopart"
-	       isovolpath="$media_path/$label"
-	       sudo chmod -R 777 "$isovolpath"
+	       if   gio mount -d /dev/$drive"$efipart"; then
+	            if   gio mount -d /dev/$drive"$isopart"; then
+	                 isovolpath="$media_path/$label"
+	                 sudo chmod -R 777 "$isovolpath"
+	            else
+	                 mnterror="Failed to mount \"$label\" volume."
+	            fi
+	       else
+	            mnterror="Failed to mount GRUB volume."
+	       fi
 	  else
 	       sudo mkdir $isovolpath
-	       sudo mount -o $isovolopts /dev/$drive"$isopart" $isovolpath
+	       if ! sudo mount -o $isovolopts /dev/$drive"$isopart" $isovolpath; then
+	          mnterror="Failed to mount \"$label\" volume."
+	          sudo rm -f $isovolpath
+	       fi
 	  fi
+	  if [[ "$mnterror" != "N/A"  ]]; then mount_error; fi
 	  if [[ "$persist" == "true" ]]; then
-	     gio mount -d /dev/$drive"$extpart"
-	     if [[ $datapartsz != "0"  ]]; then
-	        gio mount -d /dev/$drive"$fatpart"
+	     if   gio mount -d /dev/$drive"$extpart"; then
+	          if [[ $datapartsz != "0"  ]]; then
+	             if ! gio mount -d /dev/$drive"$fatpart"; then
+	                if   [[ "$usezenity" == "true" ]]; then
+                             zenity --warning --title="Mount Failure" --text="Unable to mount DATA volume."
+	                else
+	                     echo -e "${YELLOW}Failed to mount DATA volume.${NC}"
+	                fi
+	             fi
+	          fi
+	     else
+	          mnterror="Failed to mount \"$extlabel\" volume."; mount_error
 	     fi
 	  fi
 	  if [[ "$usezenity" == "true" ]]; then
