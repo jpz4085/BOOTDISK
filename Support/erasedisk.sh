@@ -108,7 +108,15 @@ zero_part () {
 ddargs="conv=fsync oflag=direct status=none"
 if   [[ $pipeview == "true" ]]; then
      if   [[ "$usezenity" == "true" ]]; then
-          (echo "# Writing zeros to volume..."; pv < /dev/zero -ns $3 | \
+          (echo "# Writing zeros to volume..."
+          if [[ "$usezenity" == "true" && ! -t 0 ]]; then
+	      zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
+	      if [[ $? -ne 0 ]]; then
+	         echo "# Volume erase operation canceled."
+                 exit 1
+	      fi
+	  fi
+          pv < /dev/zero -ns $3 | \
           sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenprogargs
      else
           pv < /dev/zero -N 'Writing zeros to volume' -pebs $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
@@ -447,10 +455,7 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
                echo $boarder
                (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
 	           zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	           if [[ $? -ne 0 ]]; then
-	              echo "# Format operation canceled."
-                      exit 1
-	           fi
+	           if [[ $? -ne 0 ]]; then exit 1; fi
 	       fi
                sudo mkfs.fat "${mkftargs[@]}" /dev/$tgtvol && \
 	       if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
