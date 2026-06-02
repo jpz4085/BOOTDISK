@@ -1790,23 +1790,27 @@ if [[ "$usezenity" == "true" ]]; then
 fi
 }
 
-customize () {
+customize_title () {
 clear
-if [[ "$usezenity" == "false" ]]; then
-   echo "    Customize your Windows Installation    "
-   echo "-------------------------------------------"
-fi
-if   [[ "$system" == "Darwin" ]]; then
-     read -p "Enter path to Windows disk [/Volumes/Windows]: " windisk
-elif [[ "$system" == "Linux" ]]; then
-     if   [[ "$usezenity" == "true" ]]; then
-          windisk=$(zenity --file-selection --directory --title="Select the Windows drive" 2> /dev/null)
-          if [[ $? -ne 0 ]]; then return; fi
-     else
-          read -p "Enter path to Windows disk [/media/$USER/Windows]: " windisk
+echo "    Customize your Windows Installation    "
+echo "-------------------------------------------"
+}
+
+customize () {
+if   [[ "$usezenity" == "true" ]]; then
+     windisk=$(zenity --file-selection --directory --title="Select the Windows drive" 2> /dev/null)
+     if [[ $? -ne 0 ]]; then return; fi
+else
+     if   [[ "$system" == "Darwin" ]]; then
+          win_mnt_path="/Volumes/Windows"
+     elif [[ "$system" == "Linux" ]]; then
+          win_mnt_path="/media/$USER/Windows"
      fi
+     customize_title
+     read -p "Enter path to Windows disk [$win_mnt_path]: " windisk
+     customize_title
 fi
-   
+
 if [[ ! -d $windisk ]]; then
    if   [[ "$usezenity" == "true" ]]; then
         zenity --error --title="Path Error" --text="Unable to access: $windisk."
@@ -1997,7 +2001,86 @@ elif [[ $winmedia == "wintogo" ]]; then
      xmlpath="$windisk/Windows/Panther/unattend.xml"
 fi
 
+if [[ -f "$xmlpath" ]]; then
+   if   [[ "$usezenity" == "true" ]]; then
+        if   zenity --question --title="Remove Existing Answer File" --text="Do you want to delete the current answer file?" ; then
+             rm "$xmlpath"
+        else
+             zenity --warning --title="Windows Customization Canceled" --text="The customization process was canceled."
+             return 1
+        fi
+   else
+        read -p "Do you want to delete the current answer file [Y/N]? " delxmlfile
+        delxmlfile=${delxmlfile^^}
+        while [[ $delxmlfile != "Y" && $delxmlfile != "N" ]]; do
+              echo -e "${RED}Invalid entry. Try again.${NC}"
+              read -p "Do you want to delete the current answer file [Y/N]? " delxmlfile
+              delxmlfile=${delxmlfile^^}
+        done
+        if   [[ $delxmlfile == "Y" ]]; then
+             rm "$xmlpath"
+        else
+             echo
+             echo -e "The customization process was canceled."
+             echo
+             read -p "Press any key to continue... " -n1 -s
+             return 1
+        fi
+   fi
+fi
+
 (cd $resdir/Windows/Scripts; ./unattend.sh $unsupported $localize $bypassnro $oobe $settimezone $useraccounts $skipwifisetup $disdatacol $disautoenc "$loginname" "$fullname" "$description" > "$xmlpath")
+
+if   [[ -f "$xmlpath" ]]; then
+     if   [[ ! -z $(command -v xmllint) ]]; then
+          if   xmllint --noout "$xmlpath" 2> /dev/null; then
+               if   [[ "$usezenity" == "true" ]]; then
+                    zenity --info --title="Customization Succeeded" --text="Windows answer file created successfully." 
+               else
+                    echo
+                    echo "Windows answer file created successfully!"
+                    sleep 2
+               fi
+          else
+               if   [[ "$usezenity" == "true" ]]; then
+                    zenity --error --title="Customization Failed" --text="Windows answer file is not valid."
+               else
+                    echo
+                    echo -e "${RED}Windows answer file is not valid.${NC}"
+                    echo
+                    read -p "Press any key to continue... " -n1 -s
+               fi
+          fi
+     else
+          if   python3 -c "import sys, xml.dom.minidom; xml.dom.minidom.parse(sys.argv[1])" "$xmlpath" 2> /dev/null; then
+               if   [[ "$usezenity" == "true" ]]; then
+                    zenity --info --title="Customization Succeeded" --text="Windows answer file created successfully." 
+               else
+                    echo
+                    echo "Windows answer file created successfully!"
+                    sleep 2
+               fi
+          else
+               if   [[ "$usezenity" == "true" ]]; then
+                    zenity --error --title="Customization Failed" --text="Windows answer file is not valid."
+               else
+                    echo
+                    echo -e "${RED}Windows answer file is not valid.${NC}"
+                    echo
+                    read -p "Press any key to continue... " -n1 -s
+               fi
+          fi
+     fi
+else
+     if   [[ "$usezenity" == "true" ]]; then
+          zenity --error --title="Customization Failed" --text="Windows answer file was not created."
+     else
+          echo
+          echo -e "${RED}Windows answer file was not created.${NC}"
+          echo
+          read -p "Press any key to continue... " -n1 -s
+     fi
+fi
 }
 
 win11opts () {
