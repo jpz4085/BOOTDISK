@@ -57,7 +57,7 @@ if  [[ "$usezenity" == "true" ]]; then
        zenprogargs+=' --pulsate'
     fi
     zenprogargs+=' --no-cancel --title="BOOTDISK: Windows Install"'
-    zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
+    zenvfmtargs='--width=550 --height=400 --text-info --auto-scroll --title="Verbose Format Information"'
 fi
 
 if [[ $prtshm == "MBR" ]]; then
@@ -476,7 +476,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
 	(
 	echo "Unmount volumes..."
-	umount /dev/$drive?
+	umount -q /dev/$drive?
 	if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
 	echo "Erase MBR/GPT structures..."
 	mibblksz=$(($mbyte / $devblksz))
@@ -495,19 +495,19 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	disk_mbytes=$(($disk_size / $mbyte)) #Disk space in whole MiBs
 	if   [[ $uefint == "true" ]]; then
 	     if   [[ $prtshm == "MBR" ]]; then
-	          echo -e ','$(($disk_mbytes - 2))M','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	          echo -e ','$(($disk_mbytes - 2))M','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
 	     elif [[ $prtshm == "GPT" ]]; then
 	          echo -e 'size='$(($disk_mbytes - 3))M',type='$pty',name="'"$label"'"\nsize=1M,type='$pty',name=UEFI_NTFS' | \
-	          sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+	          sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
 	     fi
 	     sudo chmod o+rw /dev/$drive"2"
 	     dd if=../Support/uefi-ntfs.img of=/dev/$drive"2" 2> /dev/null
 	else
 	     if   [[ $prtshm == "MBR" ]]; then
-	          echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive > /dev/null
+	          echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive &> /dev/null
 	     elif [[ $prtshm == "GPT" ]]; then
 	          echo 'type='$pty',name="'"$label"'"' | \
-	          sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+	          sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
 	     fi
 	fi
 	if [[ "$biosmode" == "true" ]]; then

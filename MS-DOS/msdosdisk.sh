@@ -43,7 +43,7 @@ fi
 
 if [[ "$usezenity" == "true" ]]; then
    zenprogargs='--width=300 --progress --no-cancel --title="BOOTDISK: MS-DOS"'
-   zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
+   zenvfmtargs='--width=550 --height=400 --text-info --auto-scroll --title="Verbose Format Information"'
    zenwipeargs="$zenprogargs"
 fi
 
@@ -149,7 +149,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	echo "mtools_skip_check=1" >> $mtoolscfg
 
 	echo "Unmount volumes..."
-	umount /dev/$drive?
+	umount -q /dev/$drive?
 	if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
 	echo "Erase MBR/GPT structures..."
 	dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null
@@ -163,7 +163,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
               exit 1
 	   fi
 	fi
-	echo ',,'$pty',*;' | sudo sfdisk /dev/$drive > /dev/null
+	echo ',,'$pty',*;' | sudo sfdisk /dev/$drive &> /dev/null
 	ms-sys -9 /dev/$drive > /dev/null && sleep 1
 	sudo chmod o+rw /dev/$drive"1"
 	volume_size=$(blockdev --getsize64 /dev/$drive"1")

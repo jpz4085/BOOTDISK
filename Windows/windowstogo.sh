@@ -39,8 +39,9 @@ if [[ ! -z $(command -v pv) && $system == "Darwin" ]]; then pipeview="true"; fi 
 
 if [[ "$usezenity" == "true" ]]; then
    usezenity="true"
-   zenprogargs='--progress --no-cancel --title="BOOTDISK: Windows To Go"'
-   zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
+   zenprogargs='--width=300 --height=100 --progress --no-cancel --title="BOOTDISK: Windows To Go"'
+   zenvfmtargs='--width=550 --height=400 --auto-scroll --text-info --title="Verbose Format Information"'
+   zenawimargs='--width=550 --height=400 --auto-scroll --text-info --title="Windows Imaging Progress"'
 fi
 
 if [[ $verbose == "true" ]]; then
@@ -269,7 +270,7 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
       disk_offset=$(($disk_length - $mibblksz))
       (
       echo "Unmount volumes..."
-      umount /dev/$drive?
+      umount -q /dev/$drive?
       if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
       echo "Erase MBR/GPT structures..."
       dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null #Wipe first two megabytes of disk.
@@ -284,7 +285,7 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
               exit 1
 	   fi
       fi
-      echo -e ',350M,c,*\n,,7' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+      echo -e ',350M,c,*\n,,7' | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
       if [[ $verbose == "false" ]]; then dspmode="-q"; fi
       sudo chmod o+rw /dev/$drive"1"
       fmtalert="false"
@@ -338,7 +339,8 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
       if [[ "$usezenity" == "true" ]]; then
          echo "40"; echo "# Applying image to partition..."
       fi
-      wimapply "$wimfile" $image /dev/$drive"2" 2> /tmp/wimfile_errors.txt
+      wimapply "$wimfile" $image /dev/$drive"2" 2> /tmp/wimfile_errors.txt | \
+      if [[ "$usezenity" == "true" ]]; then eval zenity $zenawimargs; else cat; fi
       if [[ $? -ne 0 ]]; then
          if   [[ "$usezenity" == "true" ]]; then
               errmsg=$(cat /tmp/wimfile_errors.txt)

@@ -49,7 +49,7 @@ if  [[ "$usezenity" == "true" ]]; then
        fi
     fi
     zenprogargs+=' --no-cancel --title="BOOTDISK: Erase Disk"'
-    zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
+    zenvfmtargs='--width=550 --height=400 --text-info --auto-scroll --title="Verbose Format Information"'
 fi
 
 if   [[ $prtshm == "MBR" ]]; then
@@ -411,7 +411,7 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      fi
      (
      echo "Unmount volumes..."
-     umount /dev/$drive? 2> /dev/null || umount /dev/$drive 2> /dev/null
+     umount -q /dev/$drive? || umount -q /dev/$drive
      if [[ "$usezenity" == "true" ]]; then echo "25"; printf "# "; fi
      echo "Erase MBR/GPT structures..."
      mibblksz=$(($mbyte / $devblksz))
@@ -431,16 +431,16 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
         disk_mbytes=$(($disk_size / $mbyte)) #Disk space in whole MiBs
         if   [[ $prtshm == "MBR" ]]; then
              if   [[ $uefint == "true" ]]; then
-                  echo -e ','$(($disk_mbytes - 2))M','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+                  echo -e ','$(($disk_mbytes - 2))M','$pty',*\n,,1' | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
              else
-                  echo ',,'$pty'' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+                  echo ',,'$pty'' | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
              fi
         elif [[ $prtshm == "GPT" ]]; then
              if   [[ $uefint == "true" ]]; then
                   echo -e 'size='$(($disk_mbytes - 3))M',type='$pty',name="'"$label"'"\nsize=1M,type='$pty',name=UEFI_NTFS' | \
-                  sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+                  sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
              else
-                  echo 'type='$pty',name="'"$label"'"' | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+                  echo 'type='$pty',name="'"$label"'"' | sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
              fi
         fi
         if [[ $uefint == "true" ]]; then
@@ -482,7 +482,7 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      elif [[ $fstyp == "EXT"* ]] ; then
           mke2args+=($dspmode)
           if [[ $verbose == "true" ]]; then echo $boarder; fi
-          sudo mke2fs "${mke2args[@]}" /dev/$tgtvol | \
+          sudo mke2fs "${mke2args[@]}" /dev/$tgtvol |& \
           if [[ "$usezenity" == "true" && $verbose == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
           if [[ $verbose == "true" ]]; then echo $boarder; fi
      elif [[ $fstyp == "EXFAT" ]]; then

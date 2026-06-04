@@ -55,7 +55,7 @@ if [[ ! -z $(command -v pv) ]]; then pipeview="true"; fi
 
 if  [[ "$usezenity" == "true" ]]; then
     zenprogargs='--width=300 --progress --no-cancel --title="BOOTDISK: Linux/Other"'
-    zenvfmtargs='--width=550 --height=400 --text-info --title="Verbose Format Information"'
+    zenvfmtargs='--width=550 --height=400 --text-info --auto-scroll --title="Verbose Format Information"'
     zenwipeargs="$zenprogargs"
     if [[ $fmtyp == "FULL"* ]]; then
        if [[ $fstyp == "EXT"* || ($fstyp == "FAT"* && $pipeview == "false") ]]; then
@@ -1029,7 +1029,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  (
 	  echo "Unmount volumes..."
-	  umount /dev/$drive?
+	  umount -q /dev/$drive?
 	  if [[ "$usezenity" == "true" ]]; then
 	     if   [[ $prtshm == "ERASE" ]]; then
 	          echo "0"; echo "# Initializing disk..."
@@ -1061,11 +1061,11 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       if   [[ "$persist" == "true" ]]; then
 	            sfdargs=(,$isopartsz'M',$pty,*\\n,$pstpart,L)
 	            if [[ $datapartsz != "0"  ]]; then sfdargs+=(\\n,$datapartsz'M',$datapty); fi
-	            echo -e "${sfdargs[@]}" | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	            echo -e "${sfdargs[@]}" | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
 	       elif [[ $fstyp == "EXT"* ]]; then
-	            echo -e ',50M,b\n,,L,*' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	            echo -e ',50M,b\n,,L,*' | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
 	       else
-	            echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive > /dev/null && sleep 1
+	            echo ',,'$pty',*;' | sudo sfdisk -W always /dev/$drive &> /dev/null && sleep 1
 	       fi
 	  elif [[ $prtshm == "GPT" ]]; then
 	       if [[ $hasgrub == "true" ]]; then
@@ -1075,14 +1075,14 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            sfdargs+=(size=$isopartsz'M',type=$pty,name='"'$label'"'\\n)
 	            sfdargs+=(size=$pstpart,type=L,name='"'$extlabel'"')
 	            if [[ $datapartsz != "0"  ]]; then sfdargs+=(\\ntype=$pty,name='"'STORAGE'"'); fi
-	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
 	       elif [[ $fstyp == "EXT"* ]]; then
 	            sfdargs+=(size=50M,type=$pty,name='"'GRUB UEFI'"'\\n)
 	            sfdargs+=(type=L,name='"'$label'"')
-	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
 	       else
 	            sfdargs+=(type=$pty,name='"'$label'"')
-	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive > /dev/null && sleep 1
+	            echo -e "${sfdargs[@]}" | sudo sfdisk --label gpt -W always /dev/$drive &> /dev/null && sleep 1
 	       fi
 	  fi
 	  fmtalert="false"
@@ -1095,7 +1095,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	          echo "Creating $fstyp file system on \"$label\" volume..."
 	       fi
 	       if [[ $verbose == "true" ]]; then echo $boarder; fi
-	       sudo mke2fs "${mke2isoargs[@]}" /dev/$drive"$isopart" | \
+	       sudo mke2fs "${mke2isoargs[@]}" /dev/$drive"$isopart" |& \
 	       if [[ "$usezenity" == "true" && $verbose == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
 	       if [[ $verbose == "true" ]]; then echo $boarder; fi
 	       if [[ $hasgrub == "true" ]]; then efipart=2; else efipart=1; fi
@@ -1162,7 +1162,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	        echo "Creating $fspst file system on $extlabel volume..."
 	     fi
 	     if [[ $verbose == "true" ]]; then echo $boarder; fi
-	     sudo mke2fs "${mke2pstargs[@]}" /dev/$drive"$extpart" | \
+	     sudo mke2fs "${mke2pstargs[@]}" /dev/$drive"$extpart" |& \
 	     if [[ "$usezenity" == "true" && $verbose == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
 	     if [[ $verbose == "true" ]]; then echo $boarder; fi
 	     if [[ $datapartsz != "0" ]]; then
