@@ -73,11 +73,15 @@ elif [[ "$1" == "upgrade" ]]; then
      install -m 755 MS-DOS/msdosdisk.sh $resdir/MS-DOS
      install -m 755 Windows/*.sh $resdir/Windows
      install -m 755 Support/*.sh $resdir/Support
-     install -m 644 Support/usb-icon.png $resdir/Support
      install -m 644 Support/About.txt $resdir/Support
+     if [[ ! -f $resdir/Support/usb-icon.png ]]; then
+        install -m 644 Support/usb-icon.png $resdir/Support
+     fi
      if [[ "$platform" == "Linux" ]]; then
-        install -m 755 Support/bootdisk.desktop "$apphome"
-        chown $SUDO_USER:$SUDO_USER "$apphome/bootdisk.desktop"
+        if [[ ! -f "$apphome"/bootdisk.desktop ]]; then
+           install -m 755 Support/bootdisk.desktop "$apphome"
+           chown $SUDO_USER:$SUDO_USER "$apphome/bootdisk.desktop"
+        fi
         if   [[ -d "$homedir/snap/firefox" ]]; then
              rm -rf /usr/share/doc/bootdisk
              install -d /usr/share/doc/bootdisk
