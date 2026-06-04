@@ -23,6 +23,8 @@ Features
 
 - Create a boot disk using the pre-built [UEFI Shell](https://github.com/pbatard/UEFI-Shell) image provided by Pete Batard.
 
+- Erase and format media as FAT, exFAT, NTFS, EXT2/3/4, UDF, JHFS+ and APFS. [^3]
+
 - Download official retail Windows ISOs and UEFI Shell ISOs using the [Fido](https://github.com/pbatard/Fido) script.
 
 - Calculate the SHA-1 checksum for Windows ISO files and search the [sha1.rg-adguard.net](https://sha1.rg-adguard.net) databases.
@@ -74,3 +76,4 @@ Dependencies
 
 [^1]: See the Troubleshooting section of [NOTES](https://github.com/jpz4085/BOOTDISK/blob/main/Support/NOTES.md) for help if the terminal is forced closed due to a memory issue.  
 [^2]: Persistence partitions are supported on Debian, Fedora, Gentoo, Ubuntu and related distributions.
+[^3]: The script supports all default file system options on the host platform as well as NTFS on macOS.
