@@ -816,8 +816,7 @@ else
 fi
 
 if [[ "$index" != "q" ]]; then
-   wtgtitle
-   echo -en "$choices\n"
+   if [[ "$usezenity" == "false" ]]; then wtgtitle; echo -en "$choices\n"; fi
    (cd $resdir/Windows; ./windowstogo.sh $system $wimfile $fmtyp $verbose $index $tgtdsk $usezenity)
 fi
 
@@ -2162,6 +2161,15 @@ usezenity="false"
 #Check if zenity is installed and whether text mode is enabled.
 if [[ "$1" == "--text-mode" || $system == "Darwin" ]]; then text_mode="true"; fi
 if [[ ! -z $(command -v zenity) && "$text_mode" == "false" ]]; then usezenity="true"; fi
+
+#Display command line help if needed.
+if [[ ! -z "$1" && "$1" != "--text-mode" ]]; then
+   echo -en "Usage: $(basename $0) [options]\n\n"
+   echo -en "Flash drive formatting and utilites script. \n\n"
+   echo -en "Options:\n\n--text-mode	Display text menus instead of using Zenity.\n\n"
+   echo -en "Notes:\n\nPassword prompts can be decreased by running 'sudo -v' first.\n\n"
+   exit 1
+fi
 
 # Set resource location for supported platforms or exit.
 if   [[ $system == "Darwin" ]]; then
