@@ -1846,7 +1846,7 @@ unsupported="false"
 bypassnro="false"
 # Check for Windows 11 media and provide options to disable hardware and Microsoft account requirements.
 if   [[ $winmedia == "install" && $wimtools == "true" ]]; then
-     if [[ $(wiminfo "$windisk"/sources/install.* 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
+     if [[ $(wiminfo "$windisk"/sources/install.*m 1 | grep -m 1 Name: | sed "s/^.*: *//") == "Windows 11"* ]]; then win11opts; fi
 elif [[ $winmedia == "wintogo" && ! -z $(command -v hivexsh) ]]; then
      bcdpath="/Volumes/UFD-SYSTEM/EFI/Microsoft/Boot/BCD"
      if [[ -f "$bcdpath" ]]; then
