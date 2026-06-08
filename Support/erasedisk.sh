@@ -411,7 +411,7 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      fi
      (
      echo "Unmount volumes..."
-     umount -q /dev/$drive? || umount -q /dev/$drive
+     umount -q /dev/$drive || umount -q /dev/$drive?
      if [[ "$usezenity" == "true" ]]; then echo "25"; printf "# "; fi
      echo "Erase MBR/GPT structures..."
      mibblksz=$(($mbyte / $devblksz))

@@ -270,7 +270,7 @@ elif  [[ -e /dev/$drive && $system == "Linux" ]]; then
       disk_offset=$(($disk_length - $mibblksz))
       (
       echo "Unmount volumes..."
-      umount -q /dev/$drive?
+      umount -q /dev/$drive || umount -q /dev/$drive?
       if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
       echo "Erase MBR/GPT structures..."
       dd if=/dev/zero of=/dev/$drive bs=1M count=2 2> /dev/null #Wipe first two megabytes of disk.

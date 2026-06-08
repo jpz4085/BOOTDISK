@@ -476,7 +476,7 @@ elif	[[ -e /dev/$drive && $system == "Linux" ]]; then
 	disk_length=$(sfdisk -l /dev/$drive | grep "Disk /dev/$drive:" | awk '{print $7}')
 	(
 	echo "Unmount volumes..."
-	umount -q /dev/$drive?
+	umount -q /dev/$drive || umount -q /dev/$drive?
 	if [[ "$usezenity" == "true" ]]; then echo "10"; printf "# "; fi
 	echo "Erase MBR/GPT structures..."
 	mibblksz=$(($mbyte / $devblksz))

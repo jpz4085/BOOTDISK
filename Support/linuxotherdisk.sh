@@ -1029,7 +1029,7 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  fi
 	  (
 	  echo "Unmount volumes..."
-	  umount -q /dev/$drive?
+	  umount -q /dev/$drive || umount -q /dev/$drive?
 	  if [[ "$usezenity" == "true" ]]; then
 	     if   [[ $prtshm == "ERASE" ]]; then
 	          echo "0"; echo "# Initializing disk..."
