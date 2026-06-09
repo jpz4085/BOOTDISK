@@ -123,22 +123,14 @@ zero_part () {
 ddargs="conv=fsync oflag=direct status=none"
 if   [[ $pipeview == "true" ]]; then
      if   [[ "$usezenity" == "true" ]]; then
-          (echo "# Writing zeros to volume..."
-          if [[ "$usezenity" == "true" && ! -t 0 ]]; then
-	      zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	      if [[ $? -ne 0 ]]; then
-	         echo "# Volume erase operation canceled."
-                 exit 1
-	      fi
-	  fi
-          pv < /dev/zero -ns $3 | \
-          sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenprogargs
+          (echo "# Writing zeros to volume..."; pv < /dev/zero -ns $3 | \
+           dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenprogargs
      else
-          pv < /dev/zero -N 'Writing zeros to volume' -pebs $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
+          pv < /dev/zero -N 'Writing zeros to volume' -pebs $3 | dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
      fi
 else
      echo "Writing zeros to volume..."
-     sudo dd if=/dev/zero of=/dev/$1 bs=$2 $ddargs 2> /dev/null
+     dd if=/dev/zero of=/dev/$1 bs=$2 $ddargs 2> /dev/null
 fi
 }
 
@@ -456,6 +448,7 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
      if   [[ $fstyp == "FAT"* ]]; then
           fmtalert="false"
           mkftargs+=(-n "$label")
+          sudo chmod o+rw /dev/$tgtvol
           if [[ $fmtyp == "FULL" ]]; then
              zero_part $tgtvol '4M' $volume_size
              if [[ "$usezenity" == "true" ]]; then
@@ -468,16 +461,12 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
           if   [[ $verbose == "true" ]]; then
                mkftargs+=($dspmode)
                echo $boarder
-               (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
-	           zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	           if [[ $? -ne 0 ]]; then exit 1; fi
-	       fi
-               sudo mkfs.fat "${mkftargs[@]}" /dev/$tgtvol && \
+               (mkfs.fat "${mkftargs[@]}" /dev/$tgtvol && \
 	       if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                echo $boarder
           else
-               sudo mkfs.fat "${mkftargs[@]}" /dev/$tgtvol > /dev/null
+               mkfs.fat "${mkftargs[@]}" /dev/$tgtvol > /dev/null
           fi
      elif [[ $fstyp == "EXT"* ]] ; then
           mke2args+=($dspmode)
@@ -510,16 +499,17 @@ elif [[ $system == "Linux" && -e /dev/$drive ]]; then
           if [[ $verbose == "true" ]]; then display_verbose; fi
           if [[ $fmtyp == "QUICK" && $verbose == "false" ]]; then wait $BUFF_PID; fi
      elif [[ $fstyp == "UDF" ]]; then
+          sudo chmod o+rw /dev/$tgtvol
           if [[ $fmtyp == "FULL" ]]; then
              zero_part $tgtvol '4M' $volume_size
           fi
           if   [[ $verbose == "true" ]]; then
                echo $boarder
-               sudo mkudffs "${udfargs[@]}" /dev/$tgtvol |& \
+               mkudffs "${udfargs[@]}" /dev/$tgtvol |& \
                if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                echo $boarder
           else
-               sudo mkudffs "${udfargs[@]}" /dev/$tgtvol &> /dev/null
+               mkudffs "${udfargs[@]}" /dev/$tgtvol &> /dev/null
           fi
      fi
      if [[ "$usezenity" == "true" ]]; then echo "90"; printf "# "; fi

@@ -472,23 +472,16 @@ zero_part () {
 ddargs="conv=fsync oflag=direct status=none"
 if   [[ $pipeview == "true" ]]; then
      if   [[ "$usezenity" == "true" ]]; then
-          (echo "# Writing zeros to \"$4\" volume..."
-          if [[ "$usezenity" == "true" && ! -t 0 ]]; then
-	      zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	      if [[ $? -ne 0 ]]; then
-	         echo "# Volume erase operation canceled."
-                 exit 1
-	      fi
-	  fi
-          pv < /dev/zero -ns $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenwipeargs
+          (echo "# Writing zeros to \"$4\" volume..."; pv < /dev/zero -ns $3 | \
+           dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null) 2>&1 | eval zenity $zenwipeargs
      else
-          pv < /dev/zero -N "Writing zeros to \"$4\" volume" -pebs $3 | sudo dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
+          pv < /dev/zero -N "Writing zeros to \"$4\" volume" -pebs $3 | dd of=/dev/$1 bs=$2 $ddargs 2> /dev/null
      fi
 else
      (
      if [[ "$usezenity" == "true" ]]; then printf "# "; fi
      echo "Writing zeros to \"$4\" volume..."
-     sudo dd if=/dev/zero of=/dev/$1 bs=$2 $ddargs 2> /dev/null
+     dd if=/dev/zero of=/dev/$1 bs=$2 $ddargs 2> /dev/null
      if [[ "$usezenity" == "true" ]]; then echo "100"; fi
      ) | if [[ "$usezenity" == "true" ]]; then eval zenity $zenwipeargs; else cat; fi
 fi
@@ -1100,9 +1093,10 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	       if [[ $verbose == "true" ]]; then echo $boarder; fi
 	       if [[ $hasgrub == "true" ]]; then efipart=2; else efipart=1; fi
 	       mkgefiargs=(-F 32 -n GRUB)
+	       sudo chmod o+rw /dev/$drive"$efipart"
 	       if [[ ($fmtyp == "FULL"* || $verbose == "true") && "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	       if [[ $fmtyp == "FULL"* ]]; then
-	          sudo dd if=/dev/zero of=/dev/$drive"$efipart" bs=1M status=none 2> /dev/null
+	          dd if=/dev/zero of=/dev/$drive"$efipart" bs=1M status=none 2> /dev/null
 	          if [[ "$usezenity" == "true" && $verbose == "true" ]]; then fmtalert="true"; fi
 	          echo "Checking GRUB volume for bad blocks..."
 	          mkgefiargs+=(-c)
@@ -1113,26 +1107,20 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	            fi
 	            mkgefiargs+=($dspmode)
 	            echo $boarder
-	            (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
-	                zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	                if [[ $? -ne 0 ]]; then
-	                   echo "# Format of GRUB volume canceled."
-                           exit 1
-	                fi
-	            fi
-	            sudo mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" && \
+	            (mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" && \
 	            if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
 	            if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
 	            echo $boarder
 	       else
-	            sudo mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" > /dev/null
+	            mkfs.fat "${mkgefiargs[@]}" /dev/$drive"$efipart" > /dev/null
 	       fi
 	  else
 	       if [[ ($fmtyp == "FULL"* || $verbose == "true") && "$usezenity" == "true" ]]; then echo "20"; printf "# "; fi
 	       if [[ $hasgrub == "true" ]]; then isopart=2; else isopart=1; fi
 	       mkftargs+=(-n "$label")
+	       sudo chmod o+rw /dev/$drive"$isopart"
 	       if [[ $fmtyp == "FULL" ]]; then
-	          volume_size=$(sudo blockdev --getsize64 /dev/$drive"$isopart")
+	          volume_size=$(blockdev --getsize64 /dev/$drive"$isopart")
                   zero_part $drive"$isopart" '4M' $volume_size "$label"
                   if [[ "$usezenity" == "true" && $verbose == "true" ]]; then fmtalert="true"; fi
                   echo "Checking \"$label\" volume for bad blocks..."
@@ -1142,16 +1130,12 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	               echo "Creating $fstyp file system on \"$label\" volume..."
 	            fi
                     echo $boarder
-                    (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
-	                zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	                if [[ $? -ne 0 ]]; then exit 1; fi
-	            fi
-	            sudo mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" && \
+                    (mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" && \
 	            if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                     if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                     echo $boarder
                else
-	            sudo mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" > /dev/null
+	            mkfs.fat "${mkftargs[@]}" /dev/$drive"$isopart" > /dev/null
 	       fi
 	  fi
 	  if [[ "$persist" == "true" ]]; then
@@ -1167,7 +1151,8 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	     if [[ $verbose == "true" ]]; then echo $boarder; fi
 	     if [[ $datapartsz != "0" ]]; then
 	        if [[ $hasgrub == "true" ]]; then fatpart=4; else fatpart=3; fi
-	        volume_size=$(sudo blockdev --getsize64 /dev/$drive"$fatpart")
+	        sudo chmod o+rw /dev/$drive"$fatpart"
+	        volume_size=$(blockdev --getsize64 /dev/$drive"$fatpart")
 	        if   [[ "$datafs" == "FAT16" || "$datafs" == "FAT32" ]]; then
 	             if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	             mkfdpargs=(-F ${datafs:3} -n DATA)
@@ -1183,19 +1168,12 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	                  fi
                           mkfdpargs+=($dspmode)
                           echo $boarder
-                          (if [[ "$usezenity" == "true" && ! -t 0 ]]; then
-	                      zenity --password --title="Password Authentication" | sudo -Sv 2> /dev/null
-	                      if [[ $? -ne 0 ]]; then
-	                         echo "# Format of DATA volume canceled."
-                                 exit 1
-	                      fi
-	                  fi
-	                  sudo mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" && \
+                          (mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" && \
 	                  if [[ "$fmtalert" == "true" ]]; then echo "Format completed successfully."; fi) | \
                           if [[ "$usezenity" == "true" ]]; then eval zenity $zenvfmtargs; else cat; fi
                           echo $boarder
                      else
-	                  sudo mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" > /dev/null
+	                  mkfs.fat "${mkfdpargs[@]}" /dev/$drive"$fatpart" > /dev/null
 	             fi
 	        elif [[ "$datafs" == "EXFAT" ]]; then
 	             mkexfdpargs=($dspmode -L DATA)
@@ -1206,9 +1184,9 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	                fi
 	             fi
 	             if   [[ $fmtyp == "FULL" && $verbose == "true" ]]; then
-                          coproc BUFF (sudo mkfs.exfat "${mkexfdpargs[@]}" /dev/$drive"$fatpart") > "$vbfmtinfo"
+                          coproc BUFF (mkfs.exfat "${mkexfdpargs[@]}" /dev/$drive"$fatpart") > "$vbfmtinfo"
                      else
-                          coproc BUFF (sudo mkfs.exfat "${mkexfdpargs[@]}" /dev/$drive"$fatpart")
+                          coproc BUFF (mkfs.exfat "${mkexfdpargs[@]}" /dev/$drive"$fatpart")
                      fi
                      if [[ ($fmtyp == "FULL" && "$usezenity" == "true") ||
                            ($fmtyp == "QUICK" && $verbose == "true") ]]; then
