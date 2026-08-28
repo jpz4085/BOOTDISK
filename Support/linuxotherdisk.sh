@@ -144,7 +144,8 @@ if [[ "$pstpart" != "N/A" ]]; then
    mke2pstargs+=(-L "$extlabel")
 fi
 
-if echo "$isolabel" | grep -qiE "Fedora|gentoo"; then
+if echo "$isolabel" | grep -qiE "Fedora|gentoo|MANJARO|GARUDA"; then
+   gcdpath="/usr/lib/grub/x86_64-efi-signed/gcdx64.efi.signed"
    label=$(echo "$label" | sed 's/ /-/') #Replace spaces with dashes.
    usblabel="true" #Update volume label in GRUB arguments.
    if [[ "$persist" == "true" ]]; then overlay="true"; fi #Create a persistent overlay image.
@@ -403,10 +404,10 @@ fi
 update_cdlabel () {
 i=0
 config=""
-schterms=("rd.live.image" "rd.live.squashimg")
+schterms=("rd.live.image" "rd.live.squashimg" "misobasedir")
 
 while [[ -z "$config" ]]; do
-      config=$(grep -r -m 1 --exclude-dir='.*' --include=\grub.cfg "${schterms[$i]}" "$1" | awk -F: '{print $1}')
+      config=$(grep -r -m 1 --exclude-dir='.*' --include=\grub.cfg --include=\kernels.cfg "${schterms[$i]}" "$1" | awk -F: '{print $1}')
       ((i++)) #Next search term
 done
 echo "Update $(basename "$config") with new volume label..."
@@ -1278,6 +1279,12 @@ if    [[ $erase == "true" && -e /dev/$drive ]]; then
 	  if [[ "$usblabel" == "true" ]]; then
 	     if [[ "$usezenity" == "true" ]]; then printf "# "; fi
 	     update_cdlabel "$media_path/$label"
+	     if [[ -f "$media_path/$label/.miso" && -f "$gcdpath" ]]; then
+	        if [[ "$usezenity" == "true" ]]; then printf "# "; fi
+	        echo "Replace default GRUB boot loader..."
+	        rm "$media_path/$label/efi/boot/bootx64.efi"
+	        cp "$gcdpath" "$media_path/$label/efi/boot/bootx64.efi"
+	     fi
 	  fi
 	  if [[ "$persist" == "true" ]]; then
 	     if  [[ "$pupsave" == "true" ]]; then

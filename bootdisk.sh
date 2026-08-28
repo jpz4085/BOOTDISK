@@ -20,7 +20,7 @@
 title_block () {
 cat<<EOF
 .*******************************.
-|        BOOTDISK v2.1.1        |
+|         BOOTDISK v2.2         |
 |                               |
 |         _   ,--()             |
 |        ( )-'-.------|>        |
@@ -853,6 +853,8 @@ wipedisk="false"
 ddmode="false"
 datapart="false"
 verbose="false"
+gcdfile="false"
+have_miso="false"
 prtshm="CURRENT"
 pstpart="N/A"
 fstyp="N/A"
@@ -862,6 +864,7 @@ fmpst="N/A"
 image="N/A"
 volname="N/A"
 fmtopts="FAT16|FAT32"
+misodistrolist="MANJARO|GARUDA"
 ubtdistrolist="elementary|Ubuntu|Mint|Pop_OS|Zorin|neon"
 pstcompatlist="$ubtdistrolist|d-live|Fedora|CDROM|gentoo"
 while true; do
@@ -903,18 +906,27 @@ done
 if   [[ "$isofile" == "true" ]]; then
      if [[ ! -z "$prtable" ]]; then hybridiso="true"; else hybridiso="false"; fi
      if [[ "$hybridiso" == "true" ]]; then
-        if   [[ "$usezenity" == "true" ]]; then
-             if zenity --question --title="Direct Write" --text="Write image using the dd utility?"; then ddwrite="Y"; else ddwrite="N"; fi
+        if file "$image" | grep -qiE "$misodistrolist"; then
+           have_miso="true"
+           gcdpath="/usr/lib/grub/x86_64-efi-signed/gcdx64.efi.signed"
+           if [[ -f "$gcdpath" ]]; then gcdfile="true"; fi
+        fi
+        if   [[ "$have_miso" == "false" || "$gcdfile" == "true" ]]; then
+             if   [[ "$usezenity" == "true" ]]; then
+                  if zenity --question --title="Direct Write" --text="Write image using the dd utility?"; then ddwrite="Y"; else ddwrite="N"; fi
+             else
+                  linux_other_title
+                  echo -en "$choices\n"
+                  read -p "Write image using the dd utility [Y/N]? " ddwrite
+                  ddwrite=${ddwrite^^}
+                  while [[ $ddwrite != "Y" && $ddwrite != "N" ]]; do
+                        echo -e "${RED}Invalid entry. Try again.${NC}"
+                        read -p "Write image using the dd utility [Y/N]? " ddwrite
+                        ddwrite=${ddwrite^^}
+                  done
+             fi
         else
-             linux_other_title
-             echo -en "$choices\n"
-             read -p "Write image using the dd utility [Y/N]? " ddwrite
-             ddwrite=${ddwrite^^}
-             while [[ $ddwrite != "Y" && $ddwrite != "N" ]]; do
-                   echo -e "${RED}Invalid entry. Try again.${NC}"
-                   read -p "Write image using the dd utility [Y/N]? " ddwrite
-                   ddwrite=${ddwrite^^}
-             done
+             ddwrite="Y"
         fi
         if [[ "$ddwrite" == "Y" ]]; then prtshm="ERASE"; ddmode="true"; fi
         choices+="Direct Write: ${ddmode^^}\n"
