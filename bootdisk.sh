@@ -2166,7 +2166,7 @@ fi
 # Script starts here.
 RED='\033[1;31m'
 NC='\033[0m' # No Color
-system=`uname`
+system=$(uname)
 text_mode="false"
 usezenity="false"
 
